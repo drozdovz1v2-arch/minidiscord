@@ -13,27 +13,35 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
+      position: relative;
+      overflow: hidden;
     }
+
     .card {
       width: 420px;
       background: #1e1f22;
       border-radius: 16px;
       padding: 24px;
       box-sizing: border-box;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     }
+
     h1 {
       margin: 0 0 8px;
       font-size: 24px;
     }
+
     p {
       margin: 0 0 20px;
       color: #b5bac1;
     }
+
     .label {
       font-size: 12px;
       color: #9da3ad;
       margin: 10px 0 6px;
     }
+
     input {
       width: 100%;
       box-sizing: border-box;
@@ -44,7 +52,13 @@
       background: #111214;
       color: #fff;
       font-size: 14px;
+      outline: none;
     }
+
+    input:focus {
+      border-color: #5865f2;
+    }
+
     button {
       width: 100%;
       padding: 12px;
@@ -56,26 +70,43 @@
       cursor: pointer;
       margin-bottom: 10px;
     }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
     .secondary {
       background: #3a3c43;
     }
+
     #status {
       color: #ffb4b4;
       min-height: 18px;
       margin-top: 8px;
       font-size: 13px;
     }
+
     .hint {
       color: #9da3ad;
       font-size: 12px;
       margin-top: 6px;
       line-height: 1.45;
     }
+
+    #appVersion {
+      position: fixed;
+      right: 14px;
+      bottom: 10px;
+      font-size: 12px;
+      color: #9da3ad;
+      opacity: 0.75;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>MiniDiscord VPN Build</h1>
+    <h1>MiniDiscord</h1>
     <p>Вход или регистрация</p>
 
     <div class="label">Адрес сервера</div>
@@ -98,11 +129,20 @@
     <div id="status"></div>
   </div>
 
+  <div id="appVersion">v...</div>
+
   <script>
     const { ipcRenderer } = require('electron');
 
     const DEFAULT_HOST = localStorage.getItem('mini-discord-server-host') || '127.0.0.1';
     document.getElementById('serverHost').value = DEFAULT_HOST;
+
+    ipcRenderer.on('app-version', (_event, version) => {
+      const el = document.getElementById('appVersion');
+      if (el) {
+        el.textContent = 'v' + version;
+      }
+    });
 
     function setStatus(text) {
       document.getElementById('status').textContent = text || '';

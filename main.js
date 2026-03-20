@@ -3,12 +3,16 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 
-// Запускаем встроенный Express/WebSocket сервер
 require('./app/server.js');
 
 let mainWindow = null;
 let settingsWindow = null;
-let currentUsername = null;
+
+function sendAppVersion() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app-version', app.getVersion());
+  }
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -26,26 +30,34 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'app', 'index.html'));
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    sendAppVersion();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
 function openChat(username) {
-  currentUsername = username;
   if (!mainWindow) return;
 
   mainWindow.loadFile(path.join(__dirname, 'app', 'chat.html'));
 
   mainWindow.webContents.once('did-finish-load', () => {
     mainWindow.webContents.send('set-username', username);
+    sendAppVersion();
   });
 }
 
 function openLogin() {
-  currentUsername = null;
   if (!mainWindow) return;
+
   mainWindow.loadFile(path.join(__dirname, 'app', 'index.html'));
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    sendAppVersion();
+  });
 }
 
 function openSettingsWindow() {
@@ -109,7 +121,6 @@ function setupAutoUpdates() {
   });
 
   autoUpdater.on('download-progress', (progress) => {
-    log.info(`Download speed: ${progress.bytesPerSecond}`);
     log.info(`Downloaded ${progress.percent}%`);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-status', {
@@ -137,7 +148,7 @@ function setupAutoUpdates() {
     }
   });
 
-  autoUpdater.on('error', async (err) => {
+  autoUpdater.on('error', (err) => {
     log.error('Auto update error:', err);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-status', {
@@ -147,7 +158,6 @@ function setupAutoUpdates() {
     }
   });
 
-  // Немного ждём, чтобы окно успело открыться
   setTimeout(() => {
     autoUpdater.checkForUpdatesAndNotify();
   }, 3000);

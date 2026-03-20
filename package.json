@@ -1,15 +1,16 @@
 {
   "name": "minidiscord",
   "productName": "MiniDiscord",
-  "version": "2.4.0",
-  "description": "MiniDiscord for friends with installer and auto updates",
+  "version": "2.4.3",
+  "description": "MiniDiscord with installer and auto updates",
   "main": "main.js",
   "author": "YOUR_NAME",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis",
-    "publish": "electron-builder --win nsis --publish always"
+    "publish": "electron-builder --win nsis --publish always",
+    "release": "node scripts/release.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -20,15 +21,16 @@
   },
   "devDependencies": {
     "electron": "^37.2.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.8.1"
   },
   "build": {
-    "appId": "com.yourname.minidiscord",
+    "appId": "com.frayze370.minidiscord",
     "productName": "MiniDiscord",
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "asar": true,
     "files": [
       "app/**/*",
+      "scripts/**/*",
       "main.js",
       "package.json"
     ],
@@ -58,7 +60,8 @@
       {
         "provider": "github",
         "owner": "Frayze370",
-        "repo": "F"
+        "repo": "F",
+        "releaseType": "release"
       }
     ]
   }
