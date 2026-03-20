@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Настройки микрофона</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #313338;
+      color: white;
+      padding: 18px;
+      box-sizing: border-box;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      color: #c9ccd1;
+    }
+    select, input[type="range"] {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 12px;
+      border: 0;
+      border-radius: 10px;
+      background: #5865f2;
+      color: white;
+      cursor: pointer;
+    }
+    .hint {
+      margin-top: 10px;
+      color: #9da3ad;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Микрофон</h2>
+
+  <label for="micSelect">Устройство ввода</label>
+  <select id="micSelect"></select>
+
+  <label for="micVolume">Громкость микрофона</label>
+  <input id="micVolume" type="range" min="0" max="200" value="100" />
+
+  <button onclick="applySettings()">Применить</button>
+  <div class="hint">Настройки применяются в уже открытом голосовом чате.</div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    async function init() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {}
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const select = document.getElementById('micSelect');
+      const mics = devices.filter((d) => d.kind === 'audioinput');
+
+      mics.forEach((mic, index) => {
+        const option = document.createElement('option');
+        option.value = mic.deviceId;
+        option.textContent = mic.label || `Микрофон ${index + 1}`;
+        select.appendChild(option);
+      });
+
+      const saved = JSON.parse(localStorage.getItem('mini-discord-mic-settings') || '{}');
+      if (saved.deviceId) select.value = saved.deviceId;
+      if (saved.volume) document.getElementById('micVolume').value = saved.volume;
+    }
+
+    function applySettings() {
+      const payload = {
+        deviceId: document.getElementById('micSelect').value,
+        volume: Number(document.getElementById('micVolume').value || 100)
+      };
+
+      localStorage.setItem('mini-discord-mic-settings', JSON.stringify(payload));
+      ipcRenderer.send('apply-mic-settings', payload);
+      alert('Настройки применены');
+    }
+
+    init();
+  </script>
+</body>
+</html>

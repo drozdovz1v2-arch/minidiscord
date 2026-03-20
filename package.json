@@ -1,0 +1,65 @@
+{
+  "name": "minidiscord",
+  "productName": "MiniDiscord",
+  "version": "2.4.0",
+  "description": "MiniDiscord for friends with installer and auto updates",
+  "main": "main.js",
+  "author": "YOUR_NAME",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "publish": "electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.3.9",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.yourname.minidiscord",
+    "productName": "MiniDiscord",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "asar": true,
+    "files": [
+      "app/**/*",
+      "main.js",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MiniDiscord"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Frayze370",
+        "repo": "F"
+      }
+    ]
+  }
+}

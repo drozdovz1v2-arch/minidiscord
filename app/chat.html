@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>MiniDiscord</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #313338;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr 290px;
+      height: 100vh;
+    }
+
+    .sidebar {
+      background: #1e1f22;
+      border-right: 1px solid #2b2d31;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #2b2d31;
+    }
+
+    .brand {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .me {
+      color: #b5bac1;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .section {
+      padding: 14px 16px 8px;
+      font-size: 12px;
+      color: #9da3ad;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 0 16px 12px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #2b2d31;
+      color: white;
+    }
+
+    .tab-btn.active {
+      background: #5865f2;
+    }
+
+    .friend-add {
+      padding: 0 16px 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .friend-add input {
+      flex: 1;
+      min-width: 0;
+      background: #111214;
+      color: white;
+      border: 1px solid #3a3c43;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .friend-add button {
+      width: 72px;
+      border: 0;
+      border-radius: 10px;
+      background: #3ba55d;
+      color: white;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .list {
+      overflow: auto;
+      padding: 0 8px 12px;
+    }
+
+    .list.flex-grow {
+      flex: 1;
+    }
+
+    .item {
+      padding: 10px 12px;
+      margin: 4px 8px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #dbdee1;
+    }
+
+    .item:hover {
+      background: #2b2d31;
+    }
+
+    .item.active {
+      background: #3f4147;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #5865f2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex: 0 0 auto;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #6b7280;
+      flex: 0 0 auto;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: #313338;
+    }
+
+    .topbar {
+      min-height: 64px;
+      border-bottom: 1px solid #2b2d31;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 18px;
+      background: #313338;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .subtitle {
+      color: #9da3ad;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .voice-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #2b2d31;
+      font-size: 12px;
+      color: #c9ccd1;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      background: #5865f2;
+      color: white;
+    }
+
+    .btn.secondary {
+      background: #3a3c43;
+    }
+
+    .btn.danger {
+      background: #da373c;
+    }
+
+    .messages {
+      flex: 1;
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+    }
+
+    .message-user {
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .message-time {
+      color: #9da3ad;
+      font-size: 12px;
+    }
+
+    .message-text {
+      color: #e3e5e8;
+      margin-top: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .composer {
+      border-top: 1px solid #2b2d31;
+      padding: 14px;
+      background: #2b2d31;
+      display: flex;
+      gap: 10px;
+    }
+
+    .composer input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      background: #1e1f22;
+      color: white;
+    }
+
+    .rightbar {
+      background: #232428;
+      border-left: 1px solid #2b2d31;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .right-section {
+      padding: 16px;
+      border-bottom: 1px solid #2b2d31;
+    }
+
+    .right-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #9da3ad;
+      margin-bottom: 10px;
+    }
+
+    .muted {
+      color: #9da3ad;
+    }
+
+    .empty {
+      color: #9da3ad;
+      padding: 16px;
+    }
+
+    .badge {
+      margin-left: auto;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #da373c;
+      color: white;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .typing {
+      padding: 0 18px 10px;
+      color: #9da3ad;
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    .dm-actions {
+      margin-top: 6px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .link-btn {
+      background: transparent;
+      border: 0;
+      color: #9da3ad;
+      cursor: pointer;
+      padding: 0;
+      font-size: 12px;
+    }
+
+    .link-btn:hover {
+      color: #fff;
+    }
+
+    .request-card {
+      background: #2b2d31;
+      border-radius: 12px;
+      padding: 10px;
+      margin: 0 8px 8px;
+    }
+
+    .request-name {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .request-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .request-actions button {
+      flex: 1;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      color: white;
+      min-width: 88px;
+    }
+
+    .request-actions .accept {
+      background: #3ba55d;
+    }
+
+    .request-actions .decline {
+      background: #da373c;
+    }
+
+    .request-actions .cancel {
+      background: #5865f2;
+    }
+
+    .small-note {
+      color: #9da3ad;
+      font-size: 12px;
+      padding: 0 16px 12px;
+    }
+
+    .voice-user-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .voice-muted-label {
+      color: #da373c;
+      font-size: 12px;
+    }
+
+    .friend-row-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .friend-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .inline-danger {
+      border: 0;
+      background: transparent;
+      color: #ff8b8b;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 0;
+      flex: 0 0 auto;
+    }
+
+    .inline-danger:hover {
+      color: #fff;
+    }
+
+    .ptt-active {
+      background: #3ba55d !important;
+    }
+
+    .ptt-note {
+      color: #9da3ad;
+      font-size: 12px;
+    }
+
+    .header-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">MiniDiscord VPN Build</div>
+        <div class="me" id="meLabel">Загрузка...</div>
+      </div>
+
+      <div class="section">Навигация</div>
+      <div class="tabs">
+        <button id="globalTabBtn" class="tab-btn active" onclick="switchMode('global')">Общий чат</button>
+        <button id="dmTabBtn" class="tab-btn" onclick="switchMode('dm')">DM</button>
+      </div>
+
+      <div class="section">Добавить друга</div>
+      <div class="friend-add">
+        <input id="friendInput" placeholder="Ник пользователя" />
+        <button onclick="sendFriendRequest()">Запрос</button>
+      </div>
+      <div class="small-note">Подключение к серверу идёт по адресу, указанному на экране входа.</div>
+
+      <div class="section">Входящие заявки</div>
+      <div class="list" id="incomingRequestsList"></div>
+
+      <div class="section">Исходящие заявки</div>
+      <div class="list" id="outgoingRequestsList"></div>
+
+      <div class="section">Друзья</div>
+      <div class="list flex-grow" id="friendsList"></div>
+    </div>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <div class="title" id="chatTitle"># Общий чат</div>
+          <div class="subtitle" id="chatSubtitle">Глобальный канал для всех онлайн</div>
+          <div class="header-actions" id="dmHeaderActions"></div>
+        </div>
+
+        <div class="voice-controls">
+          <div class="pill" id="voiceStatus">Не в голосе</div>
+          <div class="pill" id="muteStatus">Микрофон: вкл</div>
+          <div class="pill" id="pttStatus">Режим: mute toggle</div>
+          <button class="btn secondary" onclick="openSettings()">Настройки</button>
+          <button id="pttModeBtn" class="btn secondary" onclick="togglePTTMode()">Push-to-Talk: Off</button>
+          <button id="pttHoldBtn" class="btn secondary" onclick="toggleMute()">Mute</button>
+          <button class="btn" onclick="joinVoice()">Join Voice</button>
+          <button class="btn danger" onclick="leaveVoice()">Leave</button>
+        </div>
+      </div>
+
+      <div class="messages" id="messages"></div>
+      <div class="typing" id="typingStatus"></div>
+
+      <div class="composer">
+        <input id="messageInput" placeholder="Напиши сообщение..." />
+        <button class="btn" onclick="sendCurrentMessage()">Send</button>
+      </div>
+    </div>
+
+    <div class="rightbar">
+      <div class="right-section">
+        <div class="right-title">Онлайн</div>
+        <div id="onlineList"></div>
+      </div>
+
+      <div class="right-section" style="flex:1; overflow:auto;">
+        <div class="right-title">Голосовой канал General</div>
+        <div id="voiceMembersList"></div>
+        <div class="ptt-note" style="margin-top:10px;">
+          В режиме Push-to-Talk удерживай <b>Space</b>, если курсор не в поле ввода.
+        </div>
+      </div>
+
+      <div class="right-section">
+        <button class="btn secondary" style="width:100%;" onclick="logout()">Выйти</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const SERVER_HOST = normalizeHost(localStorage.getItem('mini-discord-server-host') || '127.0.0.1');
+    const API_BASE = `http://${SERVER_HOST}:3000`;
+    const WS_TEXT_URL = `ws://${SERVER_HOST}:3000`;
+    const WS_VOICE_URL = `ws://${SERVER_HOST}:4001`;
+
+    let username = null;
+    let currentMode = 'global';
+    let currentDMUser = null;
+    let wsText = null;
+    let wsVoice = null;
+    let localStream = null;
+    let peers = {};
+    let remoteAudioEls = {};
+    let speakingLoops = {};
+    let onlineUsers = [];
+    let voiceMembers = [];
+    let globalMessages = [];
+    let dmPollTimer = null;
+    let unreadPollTimer = null;
+    let typingPollTimer = null;
+    let typingSendTimer = null;
+    let friendRequestsTimer = null;
+    let unreadMap = {};
+    let lastUnreadMap = {};
+    let currentMicSettings = JSON.parse(localStorage.getItem('mini-discord-mic-settings') || '{"volume":100}');
+    let isMuted = false;
+    let hasWindowFocus = true;
+    let isPTTMode = JSON.parse(localStorage.getItem('mini-discord-ptt-mode') || 'false');
+    let isPTTHeld = false;
+
+    function normalizeHost(input) {
+      const value = String(input || '').trim();
+      if (!value) return '127.0.0.1';
+      return value
+        .replace(/^https?:\/\//i, '')
+        .replace(/^ws:\/\//i, '')
+        .replace(/^wss:\/\//i, '')
+        .replace(/\/+$/g, '');
+    }
+
+    window.addEventListener('focus', () => {
+      hasWindowFocus = true;
+    });
+
+    window.addEventListener('blur', () => {
+      hasWindowFocus = false;
+    });
+
+    ipcRenderer.on('set-username', (_e, user) => {
+      username = user;
+      document.getElementById('meLabel').textContent = `Ты: ${username}\nСервер: ${SERVER_HOST}`;
+      updatePTTUI();
+      updateMuteUI();
+      requestNotificationPermission();
+      connectTextSocket();
+      loadFriends();
+      loadUnreadCounts(true);
+      startUnreadPolling();
+      loadFriendRequests();
+      startFriendRequestsPolling();
+      renderVoiceMembers();
+      renderOnlineUsers();
+      renderHeaderActions();
+    });
+
+    ipcRenderer.on('update-mic-settings', async (_e, payload) => {
+      currentMicSettings = payload || { volume: 100 };
+      localStorage.setItem('mini-discord-mic-settings', JSON.stringify(currentMicSettings));
+
+      if (!localStream) return;
+
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: currentMicSettings.deviceId
+          ? { deviceId: { exact: currentMicSettings.deviceId } }
+          : true
+      });
+
+      const newTrack = newStream.getAudioTracks()[0];
+
+      Object.values(peers).forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
+        if (sender) sender.replaceTrack(newTrack);
+      });
+
+      localStream.getTracks().forEach((t) => t.stop());
+      localStream = newStream;
+      applyLocalMicVolume();
+    });
+
+    function openSettings() {
+      ipcRenderer.send('open-settings');
+    }
+
+    async function logout() {
+      leaveVoice();
+      if (wsText) wsText.close();
+
+      const token = localStorage.getItem('mini-discord-session-token');
+
+      try {
+        await fetch(`${API_BASE}/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+      } catch (e) {}
+
+      localStorage.removeItem('mini-discord-session-token');
+
+      if (unreadPollTimer) clearInterval(unreadPollTimer);
+      if (friendRequestsTimer) clearInterval(friendRequestsTimer);
+      stopDMPolling();
+      stopTypingPolling();
+
+      ipcRenderer.send('logout');
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('globalTabBtn').classList.toggle('active', mode === 'global');
+      document.getElementById('dmTabBtn').classList.toggle('active', mode === 'dm');
+
+      if (mode === 'global') {
+        currentDMUser = null;
+        document.getElementById('chatTitle').textContent = '# Общий чат';
+        document.getElementById('chatSubtitle').textContent = 'Глобальный канал для всех онлайн';
+        document.getElementById('typingStatus').textContent = '';
+        stopDMPolling();
+        stopTypingPolling();
+        renderHeaderActions();
+        renderGlobalMessages();
+      } else {
+        document.getElementById('chatTitle').textContent = currentDMUser ? `@ ${currentDMUser}` : 'Личные сообщения';
+        document.getElementById('chatSubtitle').textContent = currentDMUser ? 'Диалог 1 на 1' : 'Выбери друга слева';
+        renderHeaderActions();
+        renderDMPlaceholder();
+      }
+    }
+
+    function renderHeaderActions() {
+      const root = document.getElementById('dmHeaderActions');
+      root.innerHTML = '';
+
+      if (currentMode !== 'dm' || !currentDMUser) return;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn danger';
+      removeBtn.textContent = 'Удалить из друзей';
+      removeBtn.onclick = async () => {
+        const ok = confirm(`Удалить ${currentDMUser} из друзей?`);
+        if (!ok) return;
+        await removeFriend(currentDMUser);
+      };
+
+      root.appendChild(removeBtn);
+    }
+
+    function requestNotificationPermission() {
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      } catch (e) {}
+    }
+
+    function showDesktopNotification(title, body) {
+      try {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        const n = new Notification(title, { body });
+        setTimeout(() => n.close(), 5000);
+      } catch (e) {}
+    }
+
+    function connectTextSocket() {
+      wsText = new WebSocket(WS_TEXT_URL);
+
+      wsText.onopen = () => {
+        wsText.send(JSON.stringify({ type: 'join', username }));
+      };
+
+      wsText.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'global-history') {
+          globalMessages = Array.isArray(data.messages) ? data.messages : [];
+          if (currentMode === 'global') renderGlobalMessages();
+        }
+
+        if (data.type === 'global-message' && data.message) {
+          globalMessages.push(data.message);
+          if (currentMode === 'global') renderGlobalMessages(true);
+        }
+
+        if (data.type === 'online-users') {
+          onlineUsers = Array.isArray(data.users) ? data.users : [];
+          renderOnlineUsers();
+        }
+      };
+
+      wsText.onerror = (err) => {
+        console.error('Text socket error:', err);
+      };
+    }
+
+    function createMessageNode(author, text, createdAt) {
+      const wrap = document.createElement('div');
+      wrap.className = 'message';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = (author || '?').slice(0, 1).toUpperCase();
+
+      const content = document.createElement('div');
+
+      const top = document.createElement('div');
+
+      const user = document.createElement('span');
+      user.className = 'message-user';
+      user.textContent = author;
+
+      const time = document.createElement('span');
+      time.className = 'message-time';
+      time.textContent = createdAt ? new Date(createdAt).toLocaleTimeString() : '';
+
+      top.appendChild(user);
+      top.appendChild(time);
+
+      const body = document.createElement('div');
+      body.className = 'message-text';
+      body.textContent = text;
+
+      content.appendChild(top);
+      content.appendChild(body);
+
+      wrap.appendChild(avatar);
+      wrap.appendChild(content);
+
+      return wrap;
+    }
+
+    function renderGlobalMessages(scrollBottom = false) {
+      const root = document.getElementById('messages');
+      root.innerHTML = '';
+
+      if (!globalMessages.length) {
+        root.innerHTML = '<div class="empty">Пока нет сообщений. Напиши первым.</div>';
+        return;
+      }
+
+      globalMessages.forEach((m) => {
+        root.appendChild(createMessageNode(m.username, m.text, m.createdAt));
+      });
+
+      if (scrollBottom || root.childElementCount > 0) {
+        root.scrollTop = root.scrollHeight;
+      }
+    }
+
+    function renderDMPlaceholder() {
+      const root = document.getElementById('messages');
+      if (!currentDMUser) {
+        root.innerHTML = '<div class="empty">Выбери друга слева, чтобы открыть DM.</div>';
+      }
+    }
+
+    async function sendCurrentMessage() {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (currentMode === 'global') {
+        if (wsText && wsText.readyState === 1) {
+          wsText.send(JSON.stringify({ type: 'global-message', username, text }));
+        }
+      } else {
+        if (!currentDMUser) {
+          alert('Выбери друга');
+          return;
+        }
+
+        const res = await fetch(`${API_BASE}/dm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: username, to: currentDMUser, text })
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          alert(data.error || 'Ошибка отправки');
+          return;
+        }
+
+        await sendTypingState(false);
+        await loadDM(currentDMUser);
+      }
+
+      input.value = '';
+    }
+
+    async function loadFriends() {
+      try {
+        const res = await fetch(`${API_BASE}/friends/${encodeURIComponent(username)}`);
+        const friends = await res.json();
+        const list = document.getElementById('friendsList');
+        list.innerHTML = '';
+
+        if (!Array.isArray(friends) || friends.length === 0) {
+          list.innerHTML = '<div class="empty">Друзей пока нет</div>';
+          return;
+        }
+
+        friends.forEach((friend) => {
+          const item = document.createElement('div');
+          item.className = 'item' + (currentDMUser === friend && currentMode === 'dm' ? ' active' : '');
+
+          const main = document.createElement('div');
+          main.className = 'friend-row-main';
+          main.onclick = () => openDM(friend);
+
+          const avatar = document.createElement('div');
+          avatar.className = 'avatar';
+          avatar.textContent = friend.slice(0, 1).toUpperCase();
+
+          const name = document.createElement('div');
+          name.className = 'friend-name';
+          name.textContent = friend;
+
+          main.appendChild(avatar);
+          main.appendChild(name);
+          item.appendChild(main);
+
+          const unread = unreadMap[friend] || 0;
+          if (unread > 0) {
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = unread > 99 ? '99+' : String(unread);
+            item.appendChild(badge);
+          }
+
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'inline-danger';
+          removeBtn.textContent = 'Удалить';
+          removeBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const ok = confirm(`Удалить ${friend} из друзей?`);
+            if (!ok) return;
+            await removeFriend(friend);
+          };
+
+          item.appendChild(removeBtn);
+          list.appendChild(item);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function removeFriend(friend) {
+      try {
+        const res = await fetch(`${API_BASE}/remove-friend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, friend })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          alert(data.error || 'Ошибка удаления друга');
+          return;
+        }
+
+        if (currentDMUser === friend) {
+          currentDMUser = null;
+          if (currentMode === 'dm') {
+            switchMode('dm');
+          }
+        }
+
+        await loadUnreadCounts(false);
+        await loadFriends();
+        await loadFriendRequests();
+        renderHeaderActions();
+      } catch (err) {
+        console.error(err);
+        alert('Сервер недоступен');
+      }
+    }
+
+    async function sendFriendRequest() {
+      const input = document.getElementById('friendInput');
+      const friend = input.value.trim();
+      if (!friend) return;
+
+      const res = await fetch(`${API_BASE}/send-friend-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: username, to: friend })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        alert(data.error || 'Ошибка отправки заявки');
+        return;
+      }
+
+      input.value = '';
+      await loadFriendRequests();
+      alert('Заявка отправлена');
+    }
+
+    async function loadFriendRequests() {
+      try {
+        const res = await fetch(`${API_BASE}/friend-requests/${encodeURIComponent(username)}`);
+        const data = await res.json();
+
+        const incomingRoot = document.getElementById('incomingRequestsList');
+        const outgoingRoot = document.getElementById('outgoingRequestsList');
+
+        incomingRoot.innerHTML = '';
+        outgoingRoot.innerHTML = '';
+
+        const incoming = Array.isArray(data.incoming) ? data.incoming : [];
+        const outgoing = Array.isArray(data.outgoing) ? data.outgoing : [];
+
+        if (!incoming.length) {
+          incomingRoot.innerHTML = '<div class="empty">Нет входящих заявок</div>';
+        } else {
+          incoming.forEach((req) => {
+            const card = document.createElement('div');
+            card.className = 'request-card';
+
+            const name = document.createElement('div');
+            name.className = 'request-name';
+            name.textContent = `${req.from} хочет добавить тебя`;
+
+            const actions = document.createElement('div');
+            actions.className = 'request-actions';
+
+            const accept = document.createElement('button');
+            accept.className = 'accept';
+            accept.textContent = 'Принять';
+            accept.onclick = async () => {
+              const res = await fetch(`${API_BASE}/accept-friend-request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: req.id, username })
+              });
+              const data = await res.json();
+              if (!res.ok || data.error) {
+                alert(data.error || 'Ошибка принятия');
+                return;
+              }
+              await loadFriendRequests();
+              await loadFriends();
+              await loadUnreadCounts(false);
+            };
+
+            const decline = document.createElement('button');
+            decline.className = 'decline';
+            decline.textContent = 'Отклонить';
+            decline.onclick = async () => {
+              const res = await fetch(`${API_BASE}/decline-friend-request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: req.id, username })
+              });
+              const data = await res.json();
+              if (!res.ok || data.error) {
+                alert(data.error || 'Ошибка отклонения');
+                return;
+              }
+              await loadFriendRequests();
+            };
+
+            actions.appendChild(accept);
+            actions.appendChild(decline);
+
+            card.appendChild(name);
+            card.appendChild(actions);
+
+            incomingRoot.appendChild(card);
+          });
+        }
+
+        if (!outgoing.length) {
+          outgoingRoot.innerHTML = '<div class="empty">Нет исходящих заявок</div>';
+        } else {
+          outgoing.forEach((req) => {
+            const card = document.createElement('div');
+            card.className = 'request-card';
+
+            const name = document.createElement('div');
+            name.className = 'request-name';
+            name.textContent = `Ожидает: ${req.to}`;
+
+            const actions = document.createElement('div');
+            actions.className = 'request-actions';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'cancel';
+            cancelBtn.textContent = 'Отменить';
+            cancelBtn.onclick = async () => {
+              const res = await fetch(`${API_BASE}/cancel-friend-request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: req.id, username })
+              });
+              const data = await res.json();
+              if (!res.ok || data.error) {
+                alert(data.error || 'Ошибка отмены');
+                return;
+              }
+              await loadFriendRequests();
+            };
+
+            actions.appendChild(cancelBtn);
+            card.appendChild(name);
+            card.appendChild(actions);
+            outgoingRoot.appendChild(card);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function startFriendRequestsPolling() {
+      if (friendRequestsTimer) clearInterval(friendRequestsTimer);
+      friendRequestsTimer = setInterval(loadFriendRequests, 2500);
+    }
+
+    async function loadUnreadCounts(initial = false) {
+      try {
+        const res = await fetch(`${API_BASE}/dm-unread/${encodeURIComponent(username)}`);
+        const newMap = await res.json();
+
+        if (!initial) {
+          for (const [friend, count] of Object.entries(newMap)) {
+            const prev = lastUnreadMap[friend] || 0;
+            const increased = count > prev;
+            const isOpenDM = currentMode === 'dm' && currentDMUser === friend;
+
+            if (increased && !isOpenDM) {
+              if (!hasWindowFocus || document.hidden) {
+                showDesktopNotification('Новый DM', `${friend}: новое сообщение`);
+              }
+            }
+          }
+        }
+
+        unreadMap = newMap || {};
+        lastUnreadMap = { ...unreadMap };
+
+        await loadFriends();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function startUnreadPolling() {
+      if (unreadPollTimer) clearInterval(unreadPollTimer);
+      unreadPollTimer = setInterval(async () => {
+        await loadUnreadCounts(false);
+      }, 2000);
+    }
+
+    async function openDM(friend) {
+      currentDMUser = friend;
+      switchMode('dm');
+      await markDMRead(friend);
+      await loadUnreadCounts(false);
+      await loadFriends();
+      await loadDM(friend);
+      startDMPolling(friend);
+      startTypingPolling(friend);
+      renderHeaderActions();
+    }
+
+    async function markDMRead(friend) {
+      try {
+        await fetch(`${API_BASE}/dm-read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: username, friend })
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadDM(friend) {
+      const res = await fetch(`${API_BASE}/dm/${encodeURIComponent(username)}/${encodeURIComponent(friend)}`);
+      const messages = await res.json();
+      const root = document.getElementById('messages');
+      root.innerHTML = '';
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        root.innerHTML = '<div class="empty">Сообщений пока нет</div>';
+        await markDMRead(friend);
+        await loadUnreadCounts(false);
+        return;
+      }
+
+      messages.forEach((m) => {
+        const node = createMessageNode(m.from, m.text, m.createdAt);
+
+        if (m.from === username) {
+          const actions = document.createElement('div');
+          actions.className = 'dm-actions';
+
+          const del = document.createElement('button');
+          del.className = 'link-btn';
+          del.textContent = 'Удалить';
+          del.onclick = async () => {
+            const res = await fetch(`${API_BASE}/dm-delete`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: m.id, username })
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+              alert(data.error || 'Ошибка удаления');
+              return;
+            }
+            await loadDM(friend);
+          };
+
+          actions.appendChild(del);
+          node.lastChild.appendChild(actions);
+        }
+
+        root.appendChild(node);
+      });
+
+      root.scrollTop = root.scrollHeight;
+      await markDMRead(friend);
+      await loadUnreadCounts(false);
+    }
+
+    function startDMPolling(friend) {
+      stopDMPolling();
+      dmPollTimer = setInterval(() => {
+        if (currentMode === 'dm' && currentDMUser === friend) {
+          loadDM(friend);
+        }
+      }, 1500);
+    }
+
+    function stopDMPolling() {
+      if (dmPollTimer) {
+        clearInterval(dmPollTimer);
+        dmPollTimer = null;
+      }
+    }
+
+    async function sendTypingState(isTyping) {
+      if (!currentDMUser || currentMode !== 'dm') return;
+
+      try {
+        await fetch(`${API_BASE}/dm-typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: username,
+            to: currentDMUser,
+            isTyping
+          })
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function startTypingPolling(friend) {
+      stopTypingPolling();
+
+      typingPollTimer = setInterval(async () => {
+        if (currentMode !== 'dm' || currentDMUser !== friend) return;
+
+        try {
+          const res = await fetch(`${API_BASE}/dm-typing/${encodeURIComponent(friend)}/${encodeURIComponent(username)}`);
+          const data = await res.json();
+          document.getElementById('typingStatus').textContent = data.isTyping ? `${friend} печатает...` : '';
+        } catch (err) {
+          console.error(err);
+        }
+      }, 1200);
+    }
+
+    function stopTypingPolling() {
+      if (typingPollTimer) {
+        clearInterval(typingPollTimer);
+        typingPollTimer = null;
+      }
+      document.getElementById('typingStatus').textContent = '';
+    }
+
+    function renderOnlineUsers() {
+      const root = document.getElementById('onlineList');
+      root.innerHTML = '';
+
+      if (!onlineUsers.length) {
+        root.innerHTML = '<div class="muted">Никого нет онлайн</div>';
+        return;
+      }
+
+      onlineUsers.forEach((user) => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.style.margin = '0 0 4px 0';
+        row.style.padding = '8px 0';
+
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = '#3ba55d';
+
+        const text = document.createElement('div');
+        text.textContent = user;
+
+        row.appendChild(dot);
+        row.appendChild(text);
+        root.appendChild(row);
+      });
+    }
+
+    function renderVoiceMembers() {
+      const root = document.getElementById('voiceMembersList');
+      root.innerHTML = '';
+
+      if (!voiceMembers.length) {
+        root.innerHTML = '<div class="muted">Канал пуст</div>';
+        return;
+      }
+
+      voiceMembers.forEach((member) => {
+        const user = typeof member === 'string' ? member : member.username;
+        const muted = typeof member === 'string' ? false : !!member.muted;
+
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.style.margin = '0 0 4px 0';
+        row.style.padding = '8px 0';
+
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.id = 'voice-dot-' + user;
+        dot.style.background = muted ? '#da373c' : '#6b7280';
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'voice-user-text';
+
+        const name = document.createElement('div');
+        name.textContent = user + (user === username ? ' (ты)' : '');
+
+        textWrap.appendChild(name);
+
+        if (muted) {
+          const label = document.createElement('div');
+          label.className = 'voice-muted-label';
+          label.textContent = 'mute';
+          textWrap.appendChild(label);
+        }
+
+        row.appendChild(dot);
+        row.appendChild(textWrap);
+        root.appendChild(row);
+      });
+    }
+
+    async function joinVoice() {
+      if (wsVoice && wsVoice.readyState === 1) return;
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: currentMicSettings.deviceId
+            ? { deviceId: { exact: currentMicSettings.deviceId } }
+            : true
+        });
+      } catch (err) {
+        alert('Нет доступа к микрофону');
+        return;
+      }
+
+      isMuted = isPTTMode ? true : false;
+      isPTTHeld = false;
+      updateMuteUI();
+      applyLocalMicVolume();
+
+      wsVoice = new WebSocket(WS_VOICE_URL);
+
+      wsVoice.onopen = () => {
+        wsVoice.send(JSON.stringify({
+          type: 'join-channel',
+          username,
+          channel: 'General'
+        }));
+
+        document.getElementById('voiceStatus').textContent = 'В голосе: General';
+        sendVoiceMuteState();
+      };
+
+      wsVoice.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'channel-members') {
+          data.members.forEach((peerId) => createOffer(peerId));
+        }
+
+        if (data.type === 'new-peer') {
+          await createOffer(data.peerId);
+        }
+
+        if (data.type === 'offer') {
+          await handleOffer(data.offer, data.from);
+        }
+
+        if (data.type === 'answer') {
+          const pc = peers[data.from];
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          }
+        }
+
+        if (data.type === 'ice-candidate') {
+          const pc = peers[data.from];
+          if (pc && data.candidate) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (e) {}
+          }
+        }
+
+        if (data.type === 'leave') {
+          removePeer(data.username);
+        }
+
+        if (data.type === 'voice-members') {
+          voiceMembers = Array.isArray(data.members) ? data.members : [];
+          renderVoiceMembers();
+        }
+      };
+
+      wsVoice.onerror = (err) => {
+        console.error('Voice socket error:', err);
+      };
+
+      wsVoice.onclose = () => {
+        document.getElementById('voiceStatus').textContent = 'Не в голосе';
+        voiceMembers = [];
+        renderVoiceMembers();
+      };
+    }
+
+    function leaveVoice() {
+      if (wsVoice && wsVoice.readyState === 1) {
+        wsVoice.send(JSON.stringify({ type: 'leave-channel' }));
+        wsVoice.close();
+      }
+
+      wsVoice = null;
+
+      Object.keys(peers).forEach(removePeer);
+
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+        localStream = null;
+      }
+
+      voiceMembers = [];
+      renderVoiceMembers();
+      document.getElementById('voiceStatus').textContent = 'Не в голосе';
+      isMuted = false;
+      isPTTHeld = false;
+      updateMuteUI();
+    }
+
+    function applyLocalMicVolume() {
+      if (!localStream) return;
+
+      const volume = Number(currentMicSettings.volume || 100);
+      let enabled = volume > 0;
+
+      if (isPTTMode) {
+        enabled = enabled && isPTTHeld;
+      } else {
+        enabled = enabled && !isMuted;
+      }
+
+      localStream.getAudioTracks().forEach((track) => {
+        track.enabled = enabled;
+      });
+    }
+
+    function updateMuteUI() {
+      const muteText = isPTTMode
+        ? (isPTTHeld ? 'Микрофон: говоришь' : 'Микрофон: отпущен')
+        : (isMuted ? 'Микрофон: mute' : 'Микрофон: вкл');
+
+      document.getElementById('muteStatus').textContent = muteText;
+
+      const holdBtn = document.getElementById('pttHoldBtn');
+      holdBtn.textContent = isPTTMode ? 'Toggle Mute: disabled' : 'Mute';
+      holdBtn.disabled = isPTTMode;
+      holdBtn.style.opacity = isPTTMode ? '0.6' : '1';
+      holdBtn.style.cursor = isPTTMode ? 'default' : 'pointer';
+    }
+
+    function updatePTTUI() {
+      const btn = document.getElementById('pttModeBtn');
+      const status = document.getElementById('pttStatus');
+
+      btn.textContent = isPTTMode ? 'Push-to-Talk: On' : 'Push-to-Talk: Off';
+      btn.classList.toggle('ptt-active', isPTTMode);
+      status.textContent = isPTTMode ? 'Режим: push-to-talk (Space)' : 'Режим: mute toggle';
+    }
+
+    function sendVoiceMuteState() {
+      if (wsVoice && wsVoice.readyState === 1) {
+        const mutedForRoster = isPTTMode ? !isPTTHeld : isMuted;
+
+        wsVoice.send(JSON.stringify({
+          type: 'voice-mute-state',
+          muted: mutedForRoster
+        }));
+      }
+    }
+
+    function toggleMute() {
+      if (isPTTMode) return;
+
+      if (!localStream) {
+        alert('Сначала зайди в голосовой канал');
+        return;
+      }
+
+      isMuted = !isMuted;
+      applyLocalMicVolume();
+      updateMuteUI();
+      sendVoiceMuteState();
+    }
+
+    function togglePTTMode() {
+      isPTTMode = !isPTTMode;
+      localStorage.setItem('mini-discord-ptt-mode', JSON.stringify(isPTTMode));
+
+      if (isPTTMode) {
+        isMuted = true;
+        isPTTHeld = false;
+      } else {
+        isMuted = false;
+        isPTTHeld = false;
+      }
+
+      applyLocalMicVolume();
+      updatePTTUI();
+      updateMuteUI();
+      sendVoiceMuteState();
+    }
+
+    function isEditableTarget(target) {
+      if (!target) return false;
+      const tag = (target.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || target.isContentEditable;
+    }
+
+    function handlePTTDown(e) {
+      if (!isPTTMode) return;
+      if (!localStream) return;
+      if (e.code !== 'Space') return;
+      if (e.repeat) return;
+      if (isEditableTarget(e.target)) return;
+
+      e.preventDefault();
+      isPTTHeld = true;
+      applyLocalMicVolume();
+      updateMuteUI();
+      sendVoiceMuteState();
+    }
+
+    function handlePTTUp(e) {
+      if (!isPTTMode) return;
+      if (!localStream) return;
+      if (e.code !== 'Space') return;
+
+      e.preventDefault();
+      isPTTHeld = false;
+      applyLocalMicVolume();
+      updateMuteUI();
+      sendVoiceMuteState();
+    }
+
+    function removePeer(peerUsername) {
+      if (peers[peerUsername]) {
+        peers[peerUsername].close();
+        delete peers[peerUsername];
+      }
+
+      if (remoteAudioEls[peerUsername]) {
+        remoteAudioEls[peerUsername].remove();
+        delete remoteAudioEls[peerUsername];
+      }
+
+      if (speakingLoops[peerUsername]) {
+        cancelAnimationFrame(speakingLoops[peerUsername]);
+        delete speakingLoops[peerUsername];
+      }
+    }
+
+    async function createOffer(peerId) {
+      if (peers[peerId] || !localStream) return;
+
+      const pc = new RTCPeerConnection();
+      peers[peerId] = pc;
+
+      localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, localStream);
+      });
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate && wsVoice && wsVoice.readyState === 1) {
+          wsVoice.send(JSON.stringify({
+            type: 'ice-candidate',
+            to: peerId,
+            candidate: e.candidate
+          }));
+        }
+      };
+
+      const audio = document.createElement('audio');
+      audio.autoplay = true;
+      remoteAudioEls[peerId] = audio;
+
+      pc.ontrack = (e) => {
+        audio.srcObject = e.streams[0];
+        startSpeakingIndicator(audio, peerId);
+      };
+
+      document.body.appendChild(audio);
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      if (wsVoice && wsVoice.readyState === 1) {
+        wsVoice.send(JSON.stringify({
+          type: 'offer',
+          to: peerId,
+          offer
+        }));
+      }
+    }
+
+    async function handleOffer(offer, from) {
+      if (peers[from]) return;
+
+      const pc = new RTCPeerConnection();
+      peers[from] = pc;
+
+      localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, localStream);
+      });
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate && wsVoice && wsVoice.readyState === 1) {
+          wsVoice.send(JSON.stringify({
+            type: 'ice-candidate',
+            to: from,
+            candidate: e.candidate
+          }));
+        }
+      };
+
+      const audio = document.createElement('audio');
+      audio.autoplay = true;
+      remoteAudioEls[from] = audio;
+
+      pc.ontrack = (e) => {
+        audio.srcObject = e.streams[0];
+        startSpeakingIndicator(audio, from);
+      };
+
+      document.body.appendChild(audio);
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      if (wsVoice && wsVoice.readyState === 1) {
+        wsVoice.send(JSON.stringify({
+          type: 'answer',
+          to: from,
+          answer
+        }));
+      }
+    }
+
+    function startSpeakingIndicator(audioEl, user) {
+      try {
+        const ctx = new AudioContext();
+        const source = ctx.createMediaElementSource(audioEl);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+
+        function tick() {
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const dot = document.getElementById('voice-dot-' + user);
+
+          const rosterEntry = (voiceMembers || []).find((m) => (typeof m === 'string' ? m === user : m.username === user));
+          const userMuted = typeof rosterEntry === 'string' ? false : !!rosterEntry?.muted;
+
+          if (dot) {
+            if (userMuted) {
+              dot.style.background = '#da373c';
+            } else {
+              dot.style.background = avg > 10 ? '#3ba55d' : '#6b7280';
+            }
+          }
+
+          speakingLoops[user] = requestAnimationFrame(tick);
+        }
+
+        tick();
+      } catch (e) {}
+    }
+
+    document.getElementById('messageInput').addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        await sendCurrentMessage();
+        return;
+      }
+
+      if (currentMode === 'dm' && currentDMUser) {
+        sendTypingState(true);
+
+        if (typingSendTimer) clearTimeout(typingSendTimer);
+        typingSendTimer = setTimeout(() => {
+          sendTypingState(false);
+        }, 1500);
+      }
+    });
+
+    document.getElementById('friendInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendFriendRequest();
+    });
+
+    window.addEventListener('keydown', handlePTTDown);
+    window.addEventListener('keyup', handlePTTUp);
+    window.addEventListener('blur', () => {
+      if (isPTTMode && isPTTHeld) {
+        isPTTHeld = false;
+        applyLocalMicVolume();
+        updateMuteUI();
+        sendVoiceMuteState();
+      }
+    });
+  </script>
+</body>
+</html>

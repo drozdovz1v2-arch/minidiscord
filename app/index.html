@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>MiniDiscord — Вход</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #313338;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .card {
+      width: 420px;
+      background: #1e1f22;
+      border-radius: 16px;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+    p {
+      margin: 0 0 20px;
+      color: #b5bac1;
+    }
+    .label {
+      font-size: 12px;
+      color: #9da3ad;
+      margin: 10px 0 6px;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #3f4147;
+      background: #111214;
+      color: #fff;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: 0;
+      border-radius: 10px;
+      background: #5865f2;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .secondary {
+      background: #3a3c43;
+    }
+    #status {
+      color: #ffb4b4;
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    .hint {
+      color: #9da3ad;
+      font-size: 12px;
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>MiniDiscord VPN Build</h1>
+    <p>Вход или регистрация</p>
+
+    <div class="label">Адрес сервера</div>
+    <input id="serverHost" placeholder="Например: 25.10.20.30 или 26.55.77.99" />
+
+    <div class="label">Логин</div>
+    <input id="user" placeholder="Логин" />
+
+    <div class="label">Пароль</div>
+    <input id="pass" type="password" placeholder="Пароль" />
+
+    <button onclick="login()">Войти</button>
+    <button class="secondary" onclick="registerUser()">Регистрация</button>
+
+    <div class="hint">
+      Для локального запуска можно оставить <b>127.0.0.1</b>.<br />
+      Для подключения с другого ПК укажи IP хоста в Hamachi или Radmin VPN.
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const DEFAULT_HOST = localStorage.getItem('mini-discord-server-host') || '127.0.0.1';
+    document.getElementById('serverHost').value = DEFAULT_HOST;
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text || '';
+    }
+
+    function normalizeHost(input) {
+      const value = String(input || '').trim();
+      if (!value) return '127.0.0.1';
+      return value
+        .replace(/^https?:\/\//i, '')
+        .replace(/^ws:\/\//i, '')
+        .replace(/^wss:\/\//i, '')
+        .replace(/\/+$/g, '');
+    }
+
+    function getApiBase() {
+      const host = normalizeHost(document.getElementById('serverHost').value);
+      localStorage.setItem('mini-discord-server-host', host);
+      return `http://${host}:3000`;
+    }
+
+    async function tryRestoreSession() {
+      const token = localStorage.getItem('mini-discord-session-token');
+      if (!token) return;
+
+      try {
+        const apiBase = getApiBase();
+
+        const res = await fetch(`${apiBase}/restore-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          ipcRenderer.send('login-success', data.username);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function registerUser() {
+      setStatus('');
+      const username = document.getElementById('user').value.trim();
+      const password = document.getElementById('pass').value;
+
+      try {
+        const apiBase = getApiBase();
+
+        const res = await fetch(`${apiBase}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setStatus(data.error || 'Ошибка регистрации');
+          return;
+        }
+
+        setStatus('Регистрация успешна. Теперь войди.');
+      } catch (err) {
+        console.error(err);
+        setStatus('Сервер недоступен');
+      }
+    }
+
+    async function login() {
+      setStatus('');
+      const username = document.getElementById('user').value.trim();
+      const password = document.getElementById('pass').value;
+
+      try {
+        const apiBase = getApiBase();
+
+        const res = await fetch(`${apiBase}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setStatus(data.error || 'Ошибка входа');
+          return;
+        }
+
+        localStorage.setItem('mini-discord-session-token', data.token);
+        ipcRenderer.send('login-success', username);
+      } catch (err) {
+        console.error(err);
+        setStatus('Сервер недоступен');
+      }
+    }
+
+    document.getElementById('pass').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    document.getElementById('serverHost').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    tryRestoreSession();
+  </script>
+</body>
+</html>
