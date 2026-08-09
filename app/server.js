@@ -1,5 +1,3 @@
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -15,6 +13,61 @@ try {
 } catch (_) {
   electronApp = null;
 }
+
+function ensureDirEarly(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function getEnvFileCandidates() {
+  const candidates = [];
+
+  if (electronApp && typeof electronApp.getPath === 'function') {
+    try {
+      candidates.push(path.join(electronApp.getPath('userData'), '.env'));
+      candidates.push(path.join(path.dirname(electronApp.getPath('exe')), '.env'));
+    } catch (_) {}
+  }
+
+  candidates.push(path.join(__dirname, '..', '.env'));
+  candidates.push(path.join(process.cwd(), '.env'));
+  return [...new Set(candidates)];
+}
+
+function syncProjectEnvToUserData() {
+  if (!electronApp || typeof electronApp.getPath !== 'function') return;
+
+  const projectEnv = path.join(__dirname, '..', '.env');
+  if (!fs.existsSync(projectEnv)) return;
+
+  const userEnv = path.join(electronApp.getPath('userData'), '.env');
+  if (fs.existsSync(userEnv)) return;
+
+  ensureDirEarly(path.dirname(userEnv));
+  fs.copyFileSync(projectEnv, userEnv);
+  console.log('📧 .env скопирован в', userEnv);
+}
+
+function loadEnvironment() {
+  syncProjectEnvToUserData();
+
+  const dotenv = require('dotenv');
+  for (const envPath of getEnvFileCandidates()) {
+    if (!fs.existsSync(envPath)) continue;
+    dotenv.config({ path: envPath, override: true });
+    console.log('📧 .env загружен:', envPath);
+    loadedEnvPath = envPath;
+    return envPath;
+  }
+
+  console.log('📧 .env не найден. Создай файл .env рядом с MiniDiscord.exe или в папке проекта wq');
+  return null;
+}
+
+let loadedEnvPath = null;
+
+loadEnvironment();
 
 const CONFIG = require('../config');
 const {
@@ -56,9 +109,12 @@ webApp.get('/mail-status', (_req, res) => {
     ok: true,
     configured: isMailConfigured(),
     verified: mailTransportVerified,
+    provider: isGmailAccount() ? 'gmail' : 'smtp',
     requireEmailVerification: REQUIRE_EMAIL_VERIFICATION,
-    host: isMailConfigured() ? MAIL_CONFIG.host : null,
-    from: isMailConfigured() ? MAIL_CONFIG.from : null
+    envPath: loadedEnvPath,
+    host: isMailConfigured() ? (isGmailAccount() ? 'gmail' : MAIL_CONFIG.host) : null,
+    from: isMailConfigured() ? getMailFromAddress() : null,
+    user: isMailConfigured() ? MAIL_CONFIG.user : null
   });
 });
 
@@ -106,10 +162,37 @@ const REQUIRE_EMAIL_VERIFICATION =
   String(process.env.REQUIRE_EMAIL_VERIFICATION || 'true').toLowerCase() !== 'false';
 
 const MAIL_DEV_SHOW_CODE =
-  String(process.env.MAIL_DEV_SHOW_CODE || 'true').toLowerCase() !== 'false';
+  String(process.env.MAIL_DEV_SHOW_CODE || 'false').toLowerCase() === 'true';
 
 let mailTransport = null;
 let mailTransportVerified = false;
+
+function normalizeMailSecret(value) {
+  return String(value || '').trim().replace(/\s+/g, '');
+}
+
+function isGmailAccount() {
+  const host = String(MAIL_CONFIG.host || '').toLowerCase();
+  const user = String(MAIL_CONFIG.user || '').toLowerCase();
+  return host.includes('gmail.com') || user.endsWith('@gmail.com');
+}
+
+function getMailFromAddress() {
+  const user = String(MAIL_CONFIG.user || '').trim();
+  let from = String(MAIL_CONFIG.from || user).trim();
+
+  if (!user) return from || 'MiniDiscord';
+
+  if (isGmailAccount()) {
+    const match = from.match(/<([^>]+)>/);
+    const fromEmail = (match ? match[1] : from).trim().toLowerCase();
+    if (fromEmail !== user.toLowerCase()) {
+      from = `MiniDiscord <${user}>`;
+    }
+  }
+
+  return from || `MiniDiscord <${user}>`;
+}
 
 function isMailConfigured() {
   return !!(MAIL_CONFIG.user && MAIL_CONFIG.pass);
@@ -122,14 +205,22 @@ function getMailTransport() {
     return null;
   }
 
+  const user = String(MAIL_CONFIG.user).trim();
+  const pass = normalizeMailSecret(MAIL_CONFIG.pass);
+
+  if (isGmailAccount()) {
+    mailTransport = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass }
+    });
+    return mailTransport;
+  }
+
   mailTransport = nodemailer.createTransport({
     host: MAIL_CONFIG.host,
     port: MAIL_CONFIG.port,
     secure: MAIL_CONFIG.secure,
-    auth: {
-      user: MAIL_CONFIG.user,
-      pass: MAIL_CONFIG.pass
-    },
+    auth: { user, pass },
     tls: {
       minVersion: 'TLSv1.2'
     }
@@ -149,7 +240,8 @@ async function verifyMailTransport() {
     const transport = getMailTransport();
     await transport.verify();
     mailTransportVerified = true;
-    console.log(`📧 Почта: SMTP OK (${MAIL_CONFIG.host}:${MAIL_CONFIG.port}, from ${MAIL_CONFIG.from})`);
+    const via = isGmailAccount() ? 'Gmail API' : `${MAIL_CONFIG.host}:${MAIL_CONFIG.port}`;
+    console.log(`📧 Почта: SMTP OK (${via}, from ${getMailFromAddress()})`);
     return true;
   } catch (err) {
     mailTransportVerified = false;
@@ -234,8 +326,9 @@ async function sendVerificationEmail(email, username, code) {
 
   try {
     await transport.sendMail({
-      from: MAIL_CONFIG.from,
+      from: getMailFromAddress(),
       to: email,
+      replyTo: MAIL_CONFIG.user,
       subject: 'MiniDiscord — код подтверждения',
       text:
 `Здравствуйте!
@@ -289,8 +382,9 @@ async function sendResetPasswordEmail(email, username, token) {
   }
 
   await transport.sendMail({
-    from: MAIL_CONFIG.from,
+    from: getMailFromAddress(),
     to: email,
+    replyTo: MAIL_CONFIG.user,
     subject: 'MiniDiscord — восстановление пароля',
     text:
 `Здравствуйте!
