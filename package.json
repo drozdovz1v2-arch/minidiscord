@@ -1,7 +1,7 @@
 {
   "name": "minidiscord",
   "productName": "MiniDiscord",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "MiniDiscord polished desktop build with installer and auto updates",
   "main": "main.js",
   "author": "YOUR_NAME",
