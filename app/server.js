@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const fs = require('fs');
 const path = require('path');
@@ -51,6 +51,17 @@ webApp.get('/server-info', (_req, res) => {
   });
 });
 
+webApp.get('/mail-status', (_req, res) => {
+  res.json({
+    ok: true,
+    configured: isMailConfigured(),
+    verified: mailTransportVerified,
+    requireEmailVerification: REQUIRE_EMAIL_VERIFICATION,
+    host: isMailConfigured() ? MAIL_CONFIG.host : null,
+    from: isMailConfigured() ? MAIL_CONFIG.from : null
+  });
+});
+
 function cloneFallback(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -91,12 +102,23 @@ const MAIL_CONFIG = {
   from: process.env.MAIL_FROM || process.env.MAIL_USER || ''
 };
 
+const REQUIRE_EMAIL_VERIFICATION =
+  String(process.env.REQUIRE_EMAIL_VERIFICATION || 'true').toLowerCase() !== 'false';
+
+const MAIL_DEV_SHOW_CODE =
+  String(process.env.MAIL_DEV_SHOW_CODE || 'true').toLowerCase() !== 'false';
+
 let mailTransport = null;
+let mailTransportVerified = false;
+
+function isMailConfigured() {
+  return !!(MAIL_CONFIG.user && MAIL_CONFIG.pass);
+}
 
 function getMailTransport() {
   if (mailTransport) return mailTransport;
 
-  if (!MAIL_CONFIG.user || !MAIL_CONFIG.pass) {
+  if (!isMailConfigured()) {
     return null;
   }
 
@@ -107,10 +129,54 @@ function getMailTransport() {
     auth: {
       user: MAIL_CONFIG.user,
       pass: MAIL_CONFIG.pass
+    },
+    tls: {
+      minVersion: 'TLSv1.2'
     }
   });
 
   return mailTransport;
+}
+
+async function verifyMailTransport() {
+  if (!isMailConfigured()) {
+    console.log('📧 Почта: SMTP не настроен (.env → MAIL_USER / MAIL_PASS)');
+    console.log('   Код подтверждения будет показан в ответе приложения (режим без SMTP)');
+    return false;
+  }
+
+  try {
+    const transport = getMailTransport();
+    await transport.verify();
+    mailTransportVerified = true;
+    console.log(`📧 Почта: SMTP OK (${MAIL_CONFIG.host}:${MAIL_CONFIG.port}, from ${MAIL_CONFIG.from})`);
+    return true;
+  } catch (err) {
+    mailTransportVerified = false;
+    mailTransport = null;
+    console.error('📧 Почта: ошибка SMTP-подключения:', err?.message || err);
+    console.error('   Проверь MAIL_USER, MAIL_PASS и для Gmail — пароль приложения');
+    return false;
+  }
+}
+
+function buildMailClientPayload(result) {
+  if (!result) return {};
+
+  if (result.simulated) {
+    return {
+      mailSimulated: true,
+      devCode: result.devCode || undefined,
+      message:
+        result.message ||
+        'SMTP не настроен на сервере. Код показан ниже — или настрой .env у хоста.'
+    };
+  }
+
+  return {
+    mailSimulated: false,
+    message: 'Код отправлен на почту. Проверь «Входящие» и «Спам».'
+  };
 }
 
 function generateEmailCode() {
@@ -158,7 +224,12 @@ async function sendVerificationEmail(email, username, code) {
       );
     } catch (_) {}
 
-    return { ok: true, simulated: true };
+    return {
+      ok: true,
+      simulated: true,
+      devCode: MAIL_DEV_SHOW_CODE ? code : undefined,
+      message: 'SMTP не настроен. Код показан в приложении.'
+    };
   }
 
   try {
@@ -749,7 +820,7 @@ webApp.post('/register', async (req, res) => {
     username,
     email,
     passwordHash,
-    emailVerified: false,
+    emailVerified: !REQUIRE_EMAIL_VERIFICATION,
     emailCode,
     emailCodeExpiresAt,
     resetToken: null,
@@ -762,17 +833,31 @@ webApp.post('/register', async (req, res) => {
   saveUsers();
   saveFriends();
 
+  if (!REQUIRE_EMAIL_VERIFICATION) {
+    return res.json({
+      ok: true,
+      requiresEmailVerification: false,
+      username,
+      message: 'Регистрация успешна. Подтверждение почты отключено на сервере.'
+    });
+  }
+
+  let mailResult;
   try {
-    await sendVerificationEmail(email, username, emailCode);
+    mailResult = await sendVerificationEmail(email, username, emailCode);
   } catch (err) {
     console.error('sendVerificationEmail error:', err);
-    return res.status(500).json({ error: 'Не удалось отправить код на почту' });
+    return res.status(500).json({
+      error: 'Не удалось отправить код на почту. Проверь настройки SMTP на сервере.',
+      details: err?.message || String(err)
+    });
   }
 
   return res.json({
     ok: true,
     requiresEmailVerification: true,
-    username
+    username,
+    ...buildMailClientPayload(mailResult)
   });
 });
 
@@ -804,23 +889,28 @@ webApp.post('/login', async (req, res) => {
 
   loginAttempts[ip] = { count: 0, last: Date.now() };
 
-  if (!user.emailVerified) {
+  if (REQUIRE_EMAIL_VERIFICATION && !user.emailVerified) {
     const emailCode = generateEmailCode();
     user.emailCode = emailCode;
     user.emailCodeExpiresAt = Date.now() + 10 * 60 * 1000;
     saveUsers();
 
+    let mailResult;
     try {
-      await sendVerificationEmail(user.email, username, emailCode);
+      mailResult = await sendVerificationEmail(user.email, username, emailCode);
     } catch (err) {
       console.error('sendVerificationEmail error:', err);
-      return res.status(500).json({ error: 'Не удалось отправить код подтверждения' });
+      return res.status(500).json({
+        error: 'Не удалось отправить код подтверждения',
+        details: err?.message || String(err)
+      });
     }
 
     return res.status(403).json({
       error: 'Почта не подтверждена',
       requiresEmailVerification: true,
-      username
+      username,
+      ...buildMailClientPayload(mailResult)
     });
   }
 
@@ -903,14 +993,21 @@ webApp.post('/resend-email-code', async (req, res) => {
   user.emailCodeExpiresAt = Date.now() + 10 * 60 * 1000;
   saveUsers();
 
+  let mailResult;
   try {
-    await sendVerificationEmail(user.email, username, user.emailCode);
+    mailResult = await sendVerificationEmail(user.email, username, user.emailCode);
   } catch (err) {
     console.error('sendVerificationEmail error:', err);
-    return res.status(500).json({ error: 'Не удалось отправить код повторно' });
+    return res.status(500).json({
+      error: 'Не удалось отправить код повторно',
+      details: err?.message || String(err)
+    });
   }
 
-  return res.json({ ok: true });
+  return res.json({
+    ok: true,
+    ...buildMailClientPayload(mailResult)
+  });
 });
 
 webApp.post('/forgot-password', async (req, res) => {
@@ -1458,6 +1555,10 @@ const httpServer = webApp.listen(CONFIG.HTTP_PORT, '0.0.0.0', () => {
   console.log('==============================================');
   console.log('');
   console.log(`Data dir: ${DATA_DIR}`);
+
+  verifyMailTransport().catch((err) => {
+    console.error('verifyMailTransport error:', err?.message || err);
+  });
 
   if (!electronApp) {
     startDiscoveryService(() => ({

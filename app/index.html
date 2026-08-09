@@ -945,7 +945,7 @@
         flashAuthCardSuccess();
 
         if (data?.requiresEmailVerification) {
-          openEmailVerificationState(username);
+          openEmailVerificationState(username, data);
           return;
         }
 
@@ -1021,7 +1021,22 @@
 	  markInputError(target);
 	}
 	
-	function openEmailVerificationState(username) {
+	function showMailVerificationFeedback(data) {
+	  let message = data?.message || 'На почту отправлен код подтверждения.';
+
+	  if (data?.mailSimulated && data?.devCode) {
+	    message = `${message} Код: ${data.devCode}`;
+	    if (emailCodeInput && !emailCodeInput.value) {
+	      emailCodeInput.value = String(data.devCode);
+	    }
+	  } else if (data?.mailSimulated) {
+	    message = `${message} Попроси хоста настроить SMTP в .env на сервере.`;
+	  }
+
+	  setStatus(message);
+	}
+
+	function openEmailVerificationState(username, mailData = null) {
 	  pendingVerificationUsername = username || userInput.value.trim().toLowerCase();
 
 	  const emailWrap = document.getElementById('authFieldsEmail');
@@ -1029,7 +1044,11 @@
 	  const verifyWrap = document.getElementById('verifyActions');
 
 	  if (authTitleEl) authTitleEl.textContent = 'Подтверждение почты';
-	  if (authSubtitleEl) authSubtitleEl.textContent = 'Введи код, который пришёл на почту';
+	  if (authSubtitleEl) {
+	    authSubtitleEl.textContent = mailData?.mailSimulated
+	      ? 'SMTP не настроен — используй код ниже'
+	      : 'Введи код, который пришёл на почту';
+	  }
 
 	  if (emailWrap) emailWrap.style.display = 'none';
 	  if (codeWrap) codeWrap.style.display = '';
@@ -1037,7 +1056,7 @@
 
 	  if (mainActionBtn) mainActionBtn.style.display = 'none';
 
-	  setStatus('На почту отправлен код подтверждения.');
+	  showMailVerificationFeedback(mailData || { message: 'На почту отправлен код подтверждения.' });
 	}
 
     async function login() {
@@ -1066,7 +1085,7 @@
         const data = await res.json();
 
         if (data?.requiresEmailVerification) {
-          openEmailVerificationState(username);
+          openEmailVerificationState(username, data);
           return;
         }
 
@@ -1153,7 +1172,7 @@
 	      return;
 	    }
 
-	    setStatus('Новый код отправлен на почту.');
+	    showMailVerificationFeedback(data);
 	    flashAuthCardSuccess();
 	  } catch (err) {
 	    console.error('resend email code error:', err);
