@@ -27,7 +27,7 @@
     "electron-builder": "^26.8.1"
   },
   "build": {
-    "appId": "com.frayze370.minidiscord",
+    "appId": "com.drozdovz1v2.minidiscord",
     "productName": "MiniDiscord",
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "asar": true,
@@ -66,8 +66,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "Frayze370",
-        "repo": "F",
+        "owner": "drozdovz1v2-arch",
+        "repo": "minidiscord",
         "releaseType": "release"
       }
     ]

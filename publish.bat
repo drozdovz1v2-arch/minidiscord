@@ -3,40 +3,64 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 set "GIT=C:\Program Files\Git\cmd\git.exe"
-set "NPX=%~dp0node_modules\.bin\npx.cmd"
+
+echo ========================================
+echo  MiniDiscord 2.8.0 - публикация на GitHub
+echo ========================================
+echo.
 
 if not exist "%GIT%" (
-  echo Git не найден. Установи Git for Windows.
+  echo [X] Git не найден. Установи: https://git-scm.com/
+  pause
+  exit /b 1
+)
+
+where node >nul 2>&1
+if errorlevel 1 (
+  echo [X] Node.js не найден. Установи: https://nodejs.org/
   pause
   exit /b 1
 )
 
 if "%GH_TOKEN%"=="" (
+  echo [X] Нужен GitHub token.
   echo.
-  echo Нужен GitHub token для публикации релиза.
-  echo 1. GitHub - Settings - Developer settings - Personal access tokens
-  echo 2. Права: repo
-  echo 3. В PowerShell: $env:GH_TOKEN="твой_токен"
+  echo 1. Аккаунт: drozdovz1v2-arch (как у Legenda Rubezha)
+  echo 2. Settings - Developer settings - Personal access tokens
+  echo 3. Создай token с правом "repo"
+  echo 4. В PowerShell выполни:
+  echo    $env:GH_TOKEN="твой_токен"
+  echo    cd "%~dp0"
+  echo    publish.bat
   echo.
   pause
   exit /b 1
 )
 
-echo Версия:
-findstr /C:"\"version\"" package.json
+for /f "tokens=2 delims=:," %%V in ('findstr /C:"\"version\"" package.json') do set VERSION=%%~V
+set VERSION=%VERSION:"=%
+set VERSION=%VERSION: =%
 
+echo Версия: %VERSION%
 echo.
-echo Коммит и push...
+
+echo [1/4] Git commit...
 "%GIT%" add .
-"%GIT%" commit -m "release 2.8.0" 2>nul
-"%GIT%" tag -f v2.8.0 2>nul
+"%GIT%" commit -m "release %VERSION%" 2>nul
+
+echo [2/4] Git tag v%VERSION%...
+"%GIT%" tag -f v%VERSION%
+
+echo [3/4] Push на GitHub (drozdovz1v2-arch/minidiscord)...
 "%GIT%" push origin main
-"%GIT%" push origin v2.8.0 --force
+"%GIT%" push origin v%VERSION% --force
+
+echo [4/4] Сборка и публикация релиза...
+call npm run publish
 
 echo.
-echo Сборка инсталлера и публикация на GitHub...
-call "%NPX%" electron-builder --win nsis --publish always
-
+echo Готово!
+echo Релиз: https://github.com/drozdovz1v2-arch/minidiscord/releases/tag/v%VERSION%
 echo.
-echo Готово: https://github.com/Frayze370/F/releases
+echo Старые клиенты 2.7.x получат обновление автоматически при запуске.
 pause
