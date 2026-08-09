@@ -1,6 +1,19 @@
 node_modules/
 dist/
 out/
+.env
+.env.*
+!.env.example
+app/data/
+app/mail-debug.log
 *.log
 npm-debug.log*
 yarn-error.log*
+Thumbs.db
+desktop.ini
+
+# binaries / certs — не публиковать
+caddy/caddy.exe
+tools/
+certs/
+*.pem

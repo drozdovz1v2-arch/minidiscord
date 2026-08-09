@@ -1,22 +1,25 @@
 {
   "name": "minidiscord",
   "productName": "MiniDiscord",
-  "version": "2.4.3",
-  "description": "MiniDiscord with installer and auto updates",
+  "version": "2.8.0",
+  "description": "MiniDiscord polished desktop build with installer and auto updates",
   "main": "main.js",
   "author": "YOUR_NAME",
   "license": "MIT",
   "scripts": {
+    "client": "electron .",
+    "server": "node app/server.js",
     "start": "electron .",
     "dist": "electron-builder --win nsis",
-    "publish": "electron-builder --win nsis --publish always",
-    "release": "node scripts/release.js"
+    "publish": "electron-builder --win nsis --publish always"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "dotenv": "^17.4.1",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.3.9",
-    "express": "^4.21.2",
+    "express": "^4.22.1",
+    "nodemailer": "^8.0.5",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -30,8 +33,12 @@
     "asar": true,
     "files": [
       "app/**/*",
-      "scripts/**/*",
+      "config.js",
+      "network.js",
+      "discovery.js",
+      "network-setup.js",
       "main.js",
+      "preload.js",
       "package.json"
     ],
     "directories": {

@@ -1,733 +1,1895 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const crypto = require('crypto');
-const { app } = require('electron');
-const WebSocket = require('ws');
+const express = require('express');
+const bcrypt = require('bcrypt');
+const nodemailer = require('nodemailer');
+const { WebSocketServer } = require('ws');
 
-const appExpress = express();
-appExpress.use(express.json());
-
-const DB_FILE = path.join(app.getPath('userData'), 'db.json');
-const HTTP_PORT = 3000;
-const VOICE_PORT = 4001;
-const HTTP_HOST = '0.0.0.0';
-
-function defaultDb() {
-  return {
-    users: [],
-    globalMessages: [],
-    friends: {},
-    dms: [],
-    dmReadState: {},
-    sessions: {},
-    dmTyping: {},
-    friendRequests: []
-  };
+let electronApp = null;
+try {
+  ({ app: electronApp } = require('electron'));
+} catch (_) {
+  electronApp = null;
 }
 
-function ensureDbShape(raw) {
-  const db = raw && typeof raw === 'object' ? raw : {};
-  if (!Array.isArray(db.users)) db.users = [];
-  if (!Array.isArray(db.globalMessages)) db.globalMessages = [];
-  if (!db.friends || typeof db.friends !== 'object' || Array.isArray(db.friends)) db.friends = {};
-  if (!Array.isArray(db.dms)) db.dms = [];
-  if (!db.dmReadState || typeof db.dmReadState !== 'object' || Array.isArray(db.dmReadState)) db.dmReadState = {};
-  if (!db.sessions || typeof db.sessions !== 'object' || Array.isArray(db.sessions)) db.sessions = {};
-  if (!db.dmTyping || typeof db.dmTyping !== 'object' || Array.isArray(db.dmTyping)) db.dmTyping = {};
-  if (!Array.isArray(db.friendRequests)) db.friendRequests = [];
-  return db;
+const CONFIG = require('../config');
+const {
+  getLocalIPv4List,
+  pickVpnHostIp,
+  getVpnNetworkInfo
+} = require('../network');
+const { startDiscoveryService } = require('../discovery');
+
+const webApp = express();
+webApp.use(express.json({ limit: '10mb' }));
+webApp.use(express.urlencoded({ extended: true }));
+webApp.use(express.static(path.join(__dirname, 'public')));
+
+webApp.get('/', (req, res) => {
+  res.send('MiniDiscord server работает');
+});
+
+webApp.get('/server-info', (_req, res) => {
+  const vpn = getVpnNetworkInfo();
+  const host = pickBestServerIp();
+
+  res.json({
+    ok: true,
+    host,
+    httpPort: CONFIG.HTTP_PORT,
+    voicePort: CONFIG.VOICE_PORT,
+    apiBase: `http://${host}:${CONFIG.HTTP_PORT}`,
+    wsTextUrl: `ws://${host}:${CONFIG.HTTP_PORT}`,
+    wsVoiceUrl: `ws://${host}:${CONFIG.VOICE_PORT}`,
+    hasVpn: vpn.hasVpn,
+    vpnAdapters: vpn.vpnAdapters,
+    ipv4: getLocalIPv4List()
+  });
+});
+
+function cloneFallback(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
-function loadDB() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      const db = defaultDb();
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-      return db;
-    }
-    const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    const db = ensureDbShape(raw);
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-    return db;
-  } catch (err) {
-    console.error('DB load error:', err);
-    const db = defaultDb();
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-    return db;
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
-let db = loadDB();
+function getDataDir() {
+  const baseDir =
+    electronApp && typeof electronApp.getPath === 'function'
+      ? electronApp.getPath('userData')
+      : __dirname;
 
-function saveDB() {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+  const dir = path.join(baseDir, 'data');
+  ensureDir(dir);
+  return dir;
 }
 
-function dmKey(owner, friend) {
-  return `${owner}::${friend}`;
+const DATA_DIR = getDataDir();
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const GLOBAL_MESSAGES_FILE = path.join(DATA_DIR, 'globalMessages.json');
+const DM_MESSAGES_FILE = path.join(DATA_DIR, 'dmMessages.json');
+const FRIEND_REQUESTS_FILE = path.join(DATA_DIR, 'friendRequests.json');
+const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
+const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
+const loginAttempts = {};
+
+const MAIL_CONFIG = {
+  host: process.env.MAIL_HOST || 'smtp.gmail.com',
+  port: Number(process.env.MAIL_PORT || 587),
+  secure: String(process.env.MAIL_SECURE || 'false') === 'true',
+  user: process.env.MAIL_USER || '',
+  pass: process.env.MAIL_PASS || '',
+  from: process.env.MAIL_FROM || process.env.MAIL_USER || ''
+};
+
+let mailTransport = null;
+
+function getMailTransport() {
+  if (mailTransport) return mailTransport;
+
+  if (!MAIL_CONFIG.user || !MAIL_CONFIG.pass) {
+    return null;
+  }
+
+  mailTransport = nodemailer.createTransport({
+    host: MAIL_CONFIG.host,
+    port: MAIL_CONFIG.port,
+    secure: MAIL_CONFIG.secure,
+    auth: {
+      user: MAIL_CONFIG.user,
+      pass: MAIL_CONFIG.pass
+    }
+  });
+
+  return mailTransport;
 }
 
-function userExists(username) {
-  return db.users.some((u) => u.username === username);
+function generateEmailCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+function pickBestServerIp() {
+  return pickVpnHostIp();
+}
+
+function getPublicBaseUrl() {
+  if (process.env.PUBLIC_BASE_URL) {
+    return process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  }
+
+  const hostIp = pickBestServerIp();
+  return `http://${hostIp}:${CONFIG.HTTP_PORT}`;
+}
+
+async function sendVerificationEmail(email, username, code) {
+  console.log('📨 Пытаюсь отправить код:', email, code);
+
+  try {
+    const logPath = path.join(__dirname, 'mail-debug.log');
+    fs.appendFileSync(
+      logPath,
+      `[${new Date().toISOString()}] TRY verify email=${email} username=${username} code=${code}\n`
+    );
+  } catch (_) {}
+
+  const transport = getMailTransport();
+
+  if (!transport) {
+    console.log(`[MAIL FALLBACK] verify code for ${username} <${email}>: ${code}`);
+
+    try {
+      const logPath = path.join(__dirname, 'mail-debug.log');
+      fs.appendFileSync(
+        logPath,
+        `[${new Date().toISOString()}] FALLBACK verify username=${username} email=${email} code=${code}\n`
+      );
+    } catch (_) {}
+
+    return { ok: true, simulated: true };
+  }
+
+  try {
+    await transport.sendMail({
+      from: MAIL_CONFIG.from,
+      to: email,
+      subject: 'MiniDiscord — код подтверждения',
+      text:
+`Здравствуйте!
+
+Ваш код подтверждения MiniDiscord: ${code}
+
+Код действует 10 минут.
+
+Если это были не вы, просто проигнорируйте это письмо.`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
+          <h2>MiniDiscord</h2>
+          <p>Ваш код подтверждения:</p>
+          <div style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</div>
+          <p>Код действует 10 минут.</p>
+        </div>
+      `
+    });
+
+    try {
+      const logPath = path.join(__dirname, 'mail-debug.log');
+      fs.appendFileSync(
+        logPath,
+        `[${new Date().toISOString()}] OK verify email sent to=${email} username=${username}\n`
+      );
+    } catch (_) {}
+  } catch (err) {
+    console.error('sendVerificationEmail error:', err);
+
+    try {
+      const logPath = path.join(__dirname, 'mail-debug.log');
+      fs.appendFileSync(
+        logPath,
+        `[${new Date().toISOString()}] ERROR verify to=${email} username=${username} error=${err?.stack || err}\n`
+      );
+    } catch (_) {}
+
+    throw err;
+  }
+
+  return { ok: true };
+}
+
+async function sendResetPasswordEmail(email, username, token) {
+  const transport = getMailTransport();
+  const resetUrl = `${getPublicBaseUrl()}/reset-password.html?token=${token}`;
+
+  if (!transport) {
+    console.log(`[MAIL FALLBACK] reset link for ${username} <${email}>: ${resetUrl}`);
+    return { ok: true, simulated: true };
+  }
+
+  await transport.sendMail({
+    from: MAIL_CONFIG.from,
+    to: email,
+    subject: 'MiniDiscord — восстановление пароля',
+    text:
+`Здравствуйте!
+
+Вы запросили восстановление пароля MiniDiscord.
+
+Откройте ссылку:
+${resetUrl}
+
+Ссылка действует 1 час.
+
+Если это были не вы, просто проигнорируйте это письмо.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
+        <h2>MiniDiscord</h2>
+        <p>Вы запросили восстановление пароля.</p>
+        <p>
+          <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#5b64f5;color:#fff;text-decoration:none;border-radius:10px;">
+            Сменить пароль
+          </a>
+        </p>
+        <p>Или откройте ссылку вручную:</p>
+        <p>${resetUrl}</p>
+        <p>Ссылка действует 1 час.</p>
+      </div>
+    `
+  });
+
+  return { ok: true };
+}
+
+function ensureJsonFile(file, fallback) {
+  const dir = path.dirname(file);
+  ensureDir(dir);
+
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(fallback, null, 2), 'utf8');
+  }
+}
+
+function readJson(file, fallback) {
+  try {
+    ensureJsonFile(file, fallback);
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    console.error(`readJson error: ${file}`, e);
+    return cloneFallback(fallback);
+  }
+}
+
+function writeJson(file, data) {
+  try {
+    ensureJsonFile(file, data);
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error(`writeJson error: ${file}`, e);
+    throw e;
+  }
+}
+
+let users = readJson(USERS_FILE, {});
+let sessions = readJson(SESSIONS_FILE, {});
+let globalMessages = readJson(GLOBAL_MESSAGES_FILE, []);
+let dmMessages = readJson(DM_MESSAGES_FILE, []);
+let friendRequests = readJson(FRIEND_REQUESTS_FILE, []);
+let friends = readJson(FRIENDS_FILE, {});
+let profiles = readJson(PROFILES_FILE, {});
+
+function saveUsers() {
+  writeJson(USERS_FILE, users);
+}
+
+function saveSessions() {
+  writeJson(SESSIONS_FILE, sessions);
+}
+
+function saveGlobalMessages() {
+  writeJson(GLOBAL_MESSAGES_FILE, globalMessages);
+}
+
+function saveDmMessages() {
+  writeJson(DM_MESSAGES_FILE, dmMessages);
+}
+
+function saveFriendRequests() {
+  writeJson(FRIEND_REQUESTS_FILE, friendRequests);
+}
+
+function saveFriends() {
+  writeJson(FRIENDS_FILE, friends);
+}
+
+function saveProfiles() {
+  writeJson(PROFILES_FILE, profiles);
+}
+
+function ensureUserCollections(username) {
+  if (!friends[username]) friends[username] = [];
+  ensureProfile(username);
+}
+
+function ensureProfile(username) {
+  if (!profiles[username]) {
+    profiles[username] = {
+      username,
+      bio: '',
+      avatar: '',
+      status: 'online'
+    };
+    saveProfiles();
+  }
+  return profiles[username];
+}
+
+function sanitizeUsername(username) {
+  return String(username || '').trim().toLowerCase();
+}
+
+function createId() {
+  return crypto.randomUUID();
+}
+
+function createToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function createSessionId() {
+  return crypto.randomUUID();
+}
+
+function createDeviceName(rawDeviceName) {
+  const safe = String(rawDeviceName || '').trim().slice(0, 120);
+  return safe || 'Unknown device';
+}
+
+function getSessionByToken(token) {
+  if (!token) return null;
+  return sessions[token] || null;
+}
+
+function removeExpiredSessions() {
+  const now = Date.now();
+  let changed = false;
+
+  Object.keys(sessions).forEach((token) => {
+    const s = sessions[token];
+    if (!s || !s.expiresAt || now > s.expiresAt) {
+      delete sessions[token];
+      changed = true;
+    }
+  });
+
+  if (changed) saveSessions();
+}
+
+function getUserSessions(username) {
+  removeExpiredSessions();
+
+  return Object.entries(sessions)
+    .filter(([, s]) => s && s.username === username)
+    .map(([token, s]) => ({
+      token,
+      sessionId: s.sessionId,
+      username: s.username,
+      deviceName: s.deviceName || 'Unknown device',
+      createdAt: s.createdAt,
+      lastUsedAt: s.lastUsedAt || s.createdAt,
+      expiresAt: s.expiresAt
+    }))
+    .sort((a, b) => Number(b.lastUsedAt || 0) - Number(a.lastUsedAt || 0));
+}
+
+function isValidStatus(status) {
+  return ['online', 'away', 'dnd'].includes(status);
 }
 
 function areFriends(a, b) {
-  return (db.friends[a] || []).includes(b) && (db.friends[b] || []).includes(a);
+  return (friends[a] || []).includes(b) && (friends[b] || []).includes(a);
 }
 
-function cleanupOldTyping() {
-  const now = Date.now();
-  for (const [key, state] of Object.entries(db.dmTyping)) {
-    if (!state || now - state.updatedAt > 10000) {
-      delete db.dmTyping[key];
-    }
+function getDmUnreadCount(forUser, friend) {
+  return dmMessages.filter(
+    (m) => m.to === forUser && m.from === friend && !m.read
+  ).length;
+}
+
+function getUnreadSnapshot(forUser) {
+  const snapshot = {};
+  (friends[forUser] || []).forEach((friend) => {
+    snapshot[friend] = getDmUnreadCount(forUser, friend);
+  });
+  return snapshot;
+}
+
+function sendUnreadSnapshot(username) {
+  const payload = JSON.stringify({
+    type: 'dm-unread-snapshot',
+    unread: getUnreadSnapshot(username)
+  });
+
+  textClients
+    .filter((c) => c.username === username && c.ws.readyState === 1)
+    .forEach((c) => {
+      try {
+        c.ws.send(payload);
+      } catch (_) {}
+    });
+}
+
+function buildOnlineUsersPayload() {
+  return Array.from(onlinePresence.keys()).map((username) => {
+    const profile = ensureProfile(username);
+    return {
+      username,
+      bio: profile.bio || '',
+      avatar: profile.avatar || '',
+      status: onlinePresence.get(username)?.status || profile.status || 'online'
+    };
+  });
+}
+
+function broadcastOnlineUsers() {
+  const payload = JSON.stringify({
+    type: 'online-users',
+    users: buildOnlineUsersPayload()
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (client.ws.readyState === 1) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+}
+
+function broadcastGlobalMessage(message) {
+  const payload = JSON.stringify({
+    type: 'global-message',
+    message
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (client.ws.readyState === 1) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+}
+
+function broadcastProfileUpdated(profile) {
+  const payload = JSON.stringify({
+    type: 'profile-updated',
+    profile
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (client.ws.readyState === 1) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+}
+
+function broadcastStatusUpdated(username, status) {
+  const payload = JSON.stringify({
+    type: 'status-updated',
+    username,
+    status
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (client.ws.readyState === 1) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+
+  broadcastOnlineUsers();
+}
+
+function sendDmToParticipants(message) {
+  const payload = JSON.stringify({
+    type: 'dm-message',
+    message
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (
+        client.ws.readyState === 1 &&
+        (client.username === message.from || client.username === message.to)
+      ) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+
+  sendUnreadSnapshot(message.to);
+  sendUnreadSnapshot(message.from);
+}
+
+function sendDmDeleteToParticipants(message) {
+  const payload = JSON.stringify({
+    type: 'dm-delete',
+    id: message.id,
+    from: message.from,
+    to: message.to
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (
+        client.ws.readyState === 1 &&
+        (client.username === message.from || client.username === message.to)
+      ) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+
+  sendUnreadSnapshot(message.to);
+  sendUnreadSnapshot(message.from);
+}
+
+function sendTyping(from, to, isTyping) {
+  const payload = JSON.stringify({
+    type: 'dm-typing',
+    from,
+    to,
+    isTyping: !!isTyping
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (client.ws.readyState === 1 && client.username === to) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+}
+
+function getTextClientByUsername(username) {
+  return textClients.find((c) => c.username === username && c.ws.readyState === 1) || null;
+}
+
+function sendTextEventToUser(username, payload) {
+  const client = getTextClientByUsername(username);
+  if (!client) return false;
+
+  try {
+    client.ws.send(JSON.stringify(payload));
+    return true;
+  } catch (_) {
+    return false;
   }
 }
 
-function removeFriendLink(a, b) {
-  if (!db.friends[a]) db.friends[a] = [];
-  if (!db.friends[b]) db.friends[b] = [];
-
-  db.friends[a] = db.friends[a].filter((name) => name !== b);
-  db.friends[b] = db.friends[b].filter((name) => name !== a);
+function createPrivateCallRoom(a, b) {
+  const sorted = [a, b].sort();
+  return `DM:${sorted[0]}:${sorted[1]}`;
 }
 
-setInterval(() => {
-  cleanupOldTyping();
-}, 5000);
+function cleanupCall(callId) {
+  if (!callId) return;
+  activeCalls.delete(callId);
+}
+
+function removeTextClient(ws) {
+  const idx = textClients.findIndex((c) => c.ws === ws);
+  if (idx !== -1) {
+    textClients.splice(idx, 1);
+  }
+}
+
+function normalizeVoiceMembers(channelName) {
+  const channel = voiceChannels.get(channelName);
+  if (!channel) return [];
+
+  return Array.from(channel.members.keys()).map((username) => {
+    const member = channel.members.get(username);
+    const profile = ensureProfile(username);
+    return {
+      username,
+      muted: !!member?.muted,
+      speaking: !!member?.speaking,
+      avatar: profile.avatar || '',
+      status: onlinePresence.get(username)?.status || profile.status || 'online'
+    };
+  });
+}
+
+function broadcastVoiceMembers(channelName) {
+  const channel = voiceChannels.get(channelName);
+  if (!channel) return;
+
+  const payload = JSON.stringify({
+    type: 'voice-members',
+    members: normalizeVoiceMembers(channelName)
+  });
+
+  channel.members.forEach((info) => {
+    try {
+      if (info.ws.readyState === 1) {
+        info.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+}
+
+function broadcastSpeaking(ws, speaking) {
+  const channelName = ws.channelName;
+  if (!channelName) return;
+
+  const channel = voiceChannels.get(channelName);
+  if (!channel) return;
+
+  const member = channel.members.get(ws.username);
+  if (!member) return;
+
+  member.speaking = !!speaking;
+
+  const payload = JSON.stringify({
+    type: 'speaking',
+    username: ws.username,
+    speaking: !!speaking
+  });
+
+  channel.members.forEach((info) => {
+    try {
+      if (info.ws.readyState === 1) {
+        info.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+
+  broadcastVoiceMembers(channelName);
+}
+
+function removeVoicePeer(ws) {
+  const username = ws.username;
+  const channelName = ws.channelName;
+  if (!username || !channelName) return;
+
+  const channel = voiceChannels.get(channelName);
+  if (!channel) return;
+
+  channel.members.delete(username);
+
+  const leavePayload = JSON.stringify({
+    type: 'leave',
+    username
+  });
+
+  channel.members.forEach((info) => {
+    try {
+      if (info.ws.readyState === 1) {
+        info.ws.send(leavePayload);
+      }
+    } catch (_) {}
+  });
+
+  broadcastVoiceMembers(channelName);
+
+  if (channel.members.size === 0) {
+    voiceChannels.delete(channelName);
+  }
+
+  delete ws.username;
+  delete ws.channelName;
+}
+
+const textClients = []; // { username, ws }
+const onlinePresence = new Map(); // username -> { status, ws }
+const voiceChannels = new Map(); // channelName -> { members: Map(username -> { ws, muted }) }
+const activeCalls = new Map(); // callId -> { id, from, to, roomId, createdAt, status }
 
 // ---------- AUTH ----------
 
-appExpress.post('/register', async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Введите логин и пароль' });
-    }
-    if (db.users.some((u) => u.username === username)) {
-      return res.status(400).json({ error: 'Пользователь уже существует' });
-    }
+webApp.post('/register', async (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    db.users.push({ username, passwordHash });
-
-    if (!db.friends[username]) db.friends[username] = [];
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/register error:', err);
-    res.status(500).json({ error: 'server error' });
+  if (!/^[a-z0-9_-]{3,24}$/.test(username)) {
+    return res.status(400).json({
+      error: 'Логин: 3–24 символа, только буквы, цифры, _ и -'
+    });
   }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({
+      error: 'Введите корректную почту'
+    });
+  }
+
+  if (password.length < 8) {
+    return res.status(400).json({
+      error: 'Пароль должен быть минимум 8 символов'
+    });
+  }
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Введите логин, почту и пароль' });
+  }
+
+  if (users[username]) {
+    return res.status(400).json({ error: 'Пользователь уже существует' });
+  }
+
+  const emailTaken = Object.values(users).some(
+    (u) => String(u.email || '').toLowerCase() === email
+  );
+
+  if (emailTaken) {
+    return res.status(400).json({ error: 'Эта почта уже используется' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const emailCode = generateEmailCode();
+  const emailCodeExpiresAt = Date.now() + 10 * 60 * 1000;
+
+  users[username] = {
+    username,
+    email,
+    passwordHash,
+    emailVerified: false,
+    emailCode,
+    emailCodeExpiresAt,
+    resetToken: null,
+    resetTokenExp: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  ensureUserCollections(username);
+
+  saveUsers();
+  saveFriends();
+
+  try {
+    await sendVerificationEmail(email, username, emailCode);
+  } catch (err) {
+    console.error('sendVerificationEmail error:', err);
+    return res.status(500).json({ error: 'Не удалось отправить код на почту' });
+  }
+
+  return res.json({
+    ok: true,
+    requiresEmailVerification: true,
+    username
+  });
 });
 
-appExpress.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    const user = db.users.find((u) => u.username === username);
+webApp.post('/login', async (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const password = String(req.body?.password || '');
 
-    if (!user) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Неверный пароль' });
-    }
-
-    const token = crypto.randomUUID();
-    db.sessions[token] = { username, createdAt: Date.now() };
-    saveDB();
-
-    res.json({ ok: true, username, token });
-  } catch (err) {
-    console.error('/login error:', err);
-    res.status(500).json({ error: 'server error' });
+  const user = users[username];
+  if (!user) {
+    return res.status(400).json({ error: 'Неверный логин или пароль' });
   }
+
+  const ip = req.ip;
+
+  if (!loginAttempts[ip]) {
+    loginAttempts[ip] = { count: 0, last: Date.now() };
+  }
+
+  if (loginAttempts[ip].count > 5 && Date.now() - loginAttempts[ip].last < 60000) {
+    return res.status(429).json({ error: 'Слишком много попыток. Подожди.' });
+  }
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) {
+    loginAttempts[ip].count++;
+    loginAttempts[ip].last = Date.now();
+    return res.status(400).json({ error: 'Неверный логин или пароль' });
+  }
+
+  loginAttempts[ip] = { count: 0, last: Date.now() };
+
+  if (!user.emailVerified) {
+    const emailCode = generateEmailCode();
+    user.emailCode = emailCode;
+    user.emailCodeExpiresAt = Date.now() + 10 * 60 * 1000;
+    saveUsers();
+
+    try {
+      await sendVerificationEmail(user.email, username, emailCode);
+    } catch (err) {
+      console.error('sendVerificationEmail error:', err);
+      return res.status(500).json({ error: 'Не удалось отправить код подтверждения' });
+    }
+
+    return res.status(403).json({
+      error: 'Почта не подтверждена',
+      requiresEmailVerification: true,
+      username
+    });
+  }
+
+  removeExpiredSessions();
+
+  const token = createToken();
+  const now = Date.now();
+
+  sessions[token] = {
+    sessionId: createSessionId(),
+    username,
+    deviceName: createDeviceName(req.body?.deviceName),
+    createdAt: now,
+    lastUsedAt: now,
+    expiresAt: now + 1000 * 60 * 60 * 24 * 7
+  };
+
+  saveSessions();
+  ensureProfile(username);
+
+  return res.json({
+    ok: true,
+    token,
+    username,
+    sessionId: sessions[token].sessionId
+  });
 });
 
-appExpress.post('/restore-session', (req, res) => {
-  try {
-    const { token } = req.body || {};
-    if (!token || !db.sessions[token]) {
-      return res.status(401).json({ error: 'Сессия не найдена' });
-    }
+webApp.post('/verify-email', (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const code = String(req.body?.code || '').trim();
 
-    res.json({ ok: true, username: db.sessions[token].username });
-  } catch (err) {
-    console.error('/restore-session error:', err);
-    res.status(500).json({ error: 'server error' });
+  const user = users[username];
+  if (!user) {
+    return res.status(404).json({ error: 'Пользователь не найден' });
   }
+
+  if (user.emailVerified) {
+    return res.json({ ok: true, alreadyVerified: true });
+  }
+
+  if (!code) {
+    return res.status(400).json({ error: 'Введите код подтверждения' });
+  }
+
+  if (!user.emailCode || !user.emailCodeExpiresAt) {
+    return res.status(400).json({ error: 'Код не найден. Запроси новый.' });
+  }
+
+  if (Date.now() > Number(user.emailCodeExpiresAt)) {
+    return res.status(400).json({ error: 'Код истёк. Запроси новый.' });
+  }
+
+  if (String(user.emailCode) !== code) {
+    return res.status(400).json({ error: 'Неверный код подтверждения' });
+  }
+
+  user.emailVerified = true;
+  user.emailCode = null;
+  user.emailCodeExpiresAt = null;
+
+  saveUsers();
+
+  return res.json({ ok: true });
 });
 
-appExpress.post('/logout', (req, res) => {
-  try {
-    const { token } = req.body || {};
-    if (token && db.sessions[token]) {
-      delete db.sessions[token];
-      saveDB();
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/logout error:', err);
-    res.status(500).json({ error: 'server error' });
+webApp.post('/resend-email-code', async (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+
+  const user = users[username];
+  if (!user) {
+    return res.status(404).json({ error: 'Пользователь не найден' });
   }
+
+  if (user.emailVerified) {
+    return res.json({ ok: true, alreadyVerified: true });
+  }
+
+  user.emailCode = generateEmailCode();
+  user.emailCodeExpiresAt = Date.now() + 10 * 60 * 1000;
+  saveUsers();
+
+  try {
+    await sendVerificationEmail(user.email, username, user.emailCode);
+  } catch (err) {
+    console.error('sendVerificationEmail error:', err);
+    return res.status(500).json({ error: 'Не удалось отправить код повторно' });
+  }
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/forgot-password', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Введите корректную почту' });
+  }
+
+  const user = Object.values(users).find(
+    (u) => String(u.email || '').toLowerCase() === email
+  );
+
+  if (!user) {
+    return res.json({ ok: true });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  user.resetToken = token;
+  user.resetTokenExp = Date.now() + 60 * 60 * 1000;
+
+  saveUsers();
+
+  try {
+    await sendResetPasswordEmail(user.email, user.username, token);
+  } catch (err) {
+    console.error('sendResetPasswordEmail error:', err);
+    return res.status(500).json({ error: 'Не удалось отправить письмо' });
+  }
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/reset-password', async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+
+  if (!token || password.length < 8) {
+    return res.status(400).json({ error: 'Пароль должен быть минимум 8 символов' });
+  }
+
+  const user = Object.values(users).find((u) => u.resetToken === token);
+
+  if (!user) {
+    return res.status(400).json({ error: 'Ссылка недействительна' });
+  }
+
+  if (!user.resetTokenExp || Date.now() > Number(user.resetTokenExp)) {
+    return res.status(400).json({ error: 'Ссылка истекла' });
+  }
+
+  user.passwordHash = await bcrypt.hash(password, 10);
+  user.resetToken = null;
+  user.resetTokenExp = 0;
+
+  saveUsers();
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/restore-session', (req, res) => {
+  const token = String(req.body?.token || '');
+  removeExpiredSessions();
+
+  const session = getSessionByToken(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Сессия не найдена' });
+  }
+
+  session.lastUsedAt = Date.now();
+  saveSessions();
+
+  return res.json({
+    ok: true,
+    username: session.username,
+    sessionId: session.sessionId,
+    deviceName: session.deviceName
+  });
+});
+
+webApp.post('/logout', (req, res) => {
+  const token = String(req.body?.token || '');
+  const username = sanitizeUsername(req.body?.username);
+
+  if (token && sessions[token]) {
+    delete sessions[token];
+    saveSessions();
+  }
+
+  if (username && onlinePresence.has(username)) {
+    onlinePresence.delete(username);
+    broadcastOnlineUsers();
+  }
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/sessions', (req, res) => {
+  const token = String(req.body?.token || '');
+  removeExpiredSessions();
+
+  const session = getSessionByToken(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Сессия не найдена' });
+  }
+
+  session.lastUsedAt = Date.now();
+  saveSessions();
+
+  return res.json({
+    ok: true,
+    sessions: getUserSessions(session.username).map((s) => ({
+      sessionId: s.sessionId,
+      deviceName: s.deviceName,
+      createdAt: s.createdAt,
+      lastUsedAt: s.lastUsedAt,
+      expiresAt: s.expiresAt,
+      current: s.token === token
+    }))
+  });
+});
+
+webApp.post('/logout-session', (req, res) => {
+  const token = String(req.body?.token || '');
+  const sessionId = String(req.body?.sessionId || '');
+  removeExpiredSessions();
+
+  const currentSession = getSessionByToken(token);
+  if (!currentSession) {
+    return res.status(401).json({ error: 'Сессия не найдена' });
+  }
+
+  const targetEntry = Object.entries(sessions).find(([, s]) =>
+    s &&
+    s.username === currentSession.username &&
+    s.sessionId === sessionId
+  );
+
+  if (!targetEntry) {
+    return res.status(404).json({ error: 'Устройство не найдено' });
+  }
+
+  const [targetToken] = targetEntry;
+  const isCurrent = targetToken === token;
+
+  delete sessions[targetToken];
+  saveSessions();
+
+  return res.json({
+    ok: true,
+    currentLoggedOut: isCurrent
+  });
+});
+
+webApp.post('/logout-all-sessions', (req, res) => {
+  const token = String(req.body?.token || '');
+  removeExpiredSessions();
+
+  const currentSession = getSessionByToken(token);
+  if (!currentSession) {
+    return res.status(401).json({ error: 'Сессия не найдена' });
+  }
+
+  Object.keys(sessions).forEach((sessionToken) => {
+    const s = sessions[sessionToken];
+    if (s && s.username === currentSession.username) {
+      delete sessions[sessionToken];
+    }
+  });
+
+  saveSessions();
+
+  return res.json({ ok: true });
+});
+
+// ---------- PROFILES ----------
+
+webApp.get('/profile/:username', (req, res) => {
+  const username = sanitizeUsername(req.params.username);
+  return res.json(ensureProfile(username));
+});
+
+webApp.post('/profile', (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const bio = typeof req.body?.bio === 'string' ? req.body.bio.slice(0, 280) : '';
+  const avatar = typeof req.body?.avatar === 'string' ? req.body.avatar.slice(0, 2_000_000) : '';
+  const status = req.body?.status;
+
+  if (!username) {
+    return res.status(400).json({ error: 'Нет username' });
+  }
+
+  const profile = ensureProfile(username);
+  profile.bio = bio;
+  profile.avatar = avatar;
+
+  if (isValidStatus(status)) {
+    profile.status = status;
+  }
+
+  profiles[username] = profile;
+  saveProfiles();
+
+  if (onlinePresence.has(username)) {
+    onlinePresence.get(username).status = profile.status;
+  }
+
+  broadcastProfileUpdated(profile);
+
+  return res.json({ ok: true, profile });
+});
+
+webApp.post('/status', (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const status = req.body?.status;
+
+  if (!username || !isValidStatus(status)) {
+    return res.status(400).json({ error: 'Неверный статус' });
+  }
+
+  const profile = ensureProfile(username);
+  profile.status = status;
+  profiles[username] = profile;
+  saveProfiles();
+
+  if (onlinePresence.has(username)) {
+    onlinePresence.get(username).status = status;
+  }
+
+  broadcastStatusUpdated(username, status);
+
+  return res.json({ ok: true });
 });
 
 // ---------- FRIENDS ----------
 
-appExpress.get('/friends/:user', (req, res) => {
-  try {
-    const username = req.params.user;
-    res.json((db.friends[username] || []).sort());
-  } catch (err) {
-    console.error('/friends error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
+webApp.get('/friends/:username', (req, res) => {
+  const username = sanitizeUsername(req.params.username);
+  ensureUserCollections(username);
+  return res.json(friends[username] || []);
 });
 
-appExpress.get('/friend-requests/:user', (req, res) => {
-  try {
-    const username = req.params.user;
+webApp.post('/send-friend-request', (req, res) => {
+  const from = sanitizeUsername(req.body?.from);
+  const to = sanitizeUsername(req.body?.to);
 
-    const incoming = db.friendRequests
-      .filter((r) => r.to === username && r.status === 'pending')
-      .sort((a, b) => b.createdAt - a.createdAt);
-
-    const outgoing = db.friendRequests
-      .filter((r) => r.from === username && r.status === 'pending')
-      .sort((a, b) => b.createdAt - a.createdAt);
-
-    res.json({ incoming, outgoing });
-  } catch (err) {
-    console.error('/friend-requests error:', err);
-    res.status(500).json({ error: 'server error' });
+  if (!from || !to) {
+    return res.status(400).json({ error: 'Неверные данные' });
   }
+
+  if (!users[to]) {
+    return res.status(404).json({ error: 'Пользователь не найден' });
+  }
+
+  if (from === to) {
+    return res.status(400).json({ error: 'Нельзя добавить самого себя' });
+  }
+
+  ensureUserCollections(from);
+  ensureUserCollections(to);
+
+  if (areFriends(from, to)) {
+    return res.status(400).json({ error: 'Вы уже друзья' });
+  }
+
+  const exists = friendRequests.find(
+    (r) =>
+      r.status === 'pending' &&
+      (
+        (r.from === from && r.to === to) ||
+        (r.from === to && r.to === from)
+      )
+  );
+
+  if (exists) {
+    return res.status(400).json({ error: 'Заявка уже существует' });
+  }
+
+  const request = {
+    id: createId(),
+    from,
+    to,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+
+  friendRequests.push(request);
+  saveFriendRequests();
+
+  return res.json({ ok: true, request });
 });
 
-appExpress.post('/send-friend-request', (req, res) => {
-  try {
-    const { from, to } = req.body || {};
+webApp.get('/friend-requests/:username', (req, res) => {
+  const username = sanitizeUsername(req.params.username);
 
-    if (!from || !to) {
-      return res.status(400).json({ error: 'Укажи оба ника' });
-    }
-    if (from === to) {
-      return res.status(400).json({ error: 'Нельзя добавить себя' });
-    }
-    if (!userExists(from) || !userExists(to)) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    if (areFriends(from, to)) {
-      return res.status(400).json({ error: 'Вы уже друзья' });
-    }
+  const incoming = friendRequests.filter(
+    (r) => r.to === username && r.status === 'pending'
+  );
 
-    const alreadyPending = db.friendRequests.some(
-      (r) =>
-        r.status === 'pending' &&
-        ((r.from === from && r.to === to) || (r.from === to && r.to === from))
-    );
+  const outgoing = friendRequests.filter(
+    (r) => r.from === username && r.status === 'pending'
+  );
 
-    if (alreadyPending) {
-      return res.status(400).json({ error: 'Заявка уже существует' });
-    }
-
-    db.friendRequests.push({
-      id: crypto.randomUUID(),
-      from,
-      to,
-      status: 'pending',
-      createdAt: Date.now()
-    });
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/send-friend-request error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
+  return res.json({ incoming, outgoing });
 });
 
-appExpress.post('/accept-friend-request', (req, res) => {
-  try {
-    const { requestId, username } = req.body || {};
-    const request = db.friendRequests.find((r) => r.id === requestId);
+webApp.post('/accept-friend-request', (req, res) => {
+  const requestId = String(req.body?.requestId || '');
+  const username = sanitizeUsername(req.body?.username);
 
-    if (!request) {
-      return res.status(404).json({ error: 'Заявка не найдена' });
-    }
-    if (request.to !== username) {
-      return res.status(403).json({ error: 'Это не твоя заявка' });
-    }
-    if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'Заявка уже обработана' });
-    }
-
-    request.status = 'accepted';
-    request.updatedAt = Date.now();
-
-    if (!db.friends[request.from]) db.friends[request.from] = [];
-    if (!db.friends[request.to]) db.friends[request.to] = [];
-
-    if (!db.friends[request.from].includes(request.to)) {
-      db.friends[request.from].push(request.to);
-    }
-    if (!db.friends[request.to].includes(request.from)) {
-      db.friends[request.to].push(request.from);
-    }
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/accept-friend-request error:', err);
-    res.status(500).json({ error: 'server error' });
+  const request = friendRequests.find((r) => r.id === requestId);
+  if (!request || request.to !== username || request.status !== 'pending') {
+    return res.status(400).json({ error: 'Заявка не найдена' });
   }
+
+  request.status = 'accepted';
+
+  ensureUserCollections(request.from);
+  ensureUserCollections(request.to);
+
+  if (!friends[request.from].includes(request.to)) {
+    friends[request.from].push(request.to);
+  }
+
+  if (!friends[request.to].includes(request.from)) {
+    friends[request.to].push(request.from);
+  }
+
+  saveFriendRequests();
+  saveFriends();
+
+  sendUnreadSnapshot(request.from);
+  sendUnreadSnapshot(request.to);
+
+  return res.json({ ok: true });
 });
 
-appExpress.post('/decline-friend-request', (req, res) => {
-  try {
-    const { requestId, username } = req.body || {};
-    const request = db.friendRequests.find((r) => r.id === requestId);
+webApp.post('/decline-friend-request', (req, res) => {
+  const requestId = String(req.body?.requestId || '');
+  const username = sanitizeUsername(req.body?.username);
 
-    if (!request) {
-      return res.status(404).json({ error: 'Заявка не найдена' });
-    }
-    if (request.to !== username) {
-      return res.status(403).json({ error: 'Это не твоя заявка' });
-    }
-    if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'Заявка уже обработана' });
-    }
-
-    request.status = 'declined';
-    request.updatedAt = Date.now();
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/decline-friend-request error:', err);
-    res.status(500).json({ error: 'server error' });
+  const request = friendRequests.find((r) => r.id === requestId);
+  if (!request || request.to !== username || request.status !== 'pending') {
+    return res.status(400).json({ error: 'Заявка не найдена' });
   }
+
+  request.status = 'declined';
+  saveFriendRequests();
+
+  return res.json({ ok: true });
 });
 
-appExpress.post('/cancel-friend-request', (req, res) => {
-  try {
-    const { requestId, username } = req.body || {};
-    const request = db.friendRequests.find((r) => r.id === requestId);
+webApp.post('/cancel-friend-request', (req, res) => {
+  const requestId = String(req.body?.requestId || '');
+  const username = sanitizeUsername(req.body?.username);
 
-    if (!request) {
-      return res.status(404).json({ error: 'Заявка не найдена' });
-    }
-    if (request.from !== username) {
-      return res.status(403).json({ error: 'Можно отменить только свою заявку' });
-    }
-    if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'Заявка уже обработана' });
-    }
-
-    request.status = 'cancelled';
-    request.updatedAt = Date.now();
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/cancel-friend-request error:', err);
-    res.status(500).json({ error: 'server error' });
+  const request = friendRequests.find((r) => r.id === requestId);
+  if (!request || request.from !== username || request.status !== 'pending') {
+    return res.status(400).json({ error: 'Заявка не найдена' });
   }
+
+  request.status = 'cancelled';
+  saveFriendRequests();
+
+  return res.json({ ok: true });
 });
 
-appExpress.post('/remove-friend', (req, res) => {
-  try {
-    const { username, friend } = req.body || {};
+webApp.post('/remove-friend', (req, res) => {
+  const username = sanitizeUsername(req.body?.username);
+  const friend = sanitizeUsername(req.body?.friend);
 
-    if (!username || !friend) {
-      return res.status(400).json({ error: 'Нет username/friend' });
-    }
-    if (!userExists(username) || !userExists(friend)) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    if (!areFriends(username, friend)) {
-      return res.status(400).json({ error: 'Вы не друзья' });
-    }
+  ensureUserCollections(username);
+  ensureUserCollections(friend);
 
-    removeFriendLink(username, friend);
+  friends[username] = (friends[username] || []).filter((u) => u !== friend);
+  friends[friend] = (friends[friend] || []).filter((u) => u !== username);
 
-    delete db.dmReadState[dmKey(username, friend)];
-    delete db.dmReadState[dmKey(friend, username)];
-    delete db.dmTyping[`${username}::${friend}`];
-    delete db.dmTyping[`${friend}::${username}`];
+  saveFriends();
 
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/remove-friend error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
+  return res.json({ ok: true });
+});
+
+// ---------- GLOBAL CHAT ----------
+
+webApp.get('/global-messages', (_req, res) => {
+  return res.json(globalMessages);
 });
 
 // ---------- DM ----------
 
-appExpress.get('/dm/:u1/:u2', (req, res) => {
-  try {
-    const { u1, u2 } = req.params;
-    const msgs = db.dms
-      .filter((m) => (m.from === u1 && m.to === u2) || (m.from === u2 && m.to === u1))
-      .sort((a, b) => a.createdAt - b.createdAt);
+webApp.get('/dm/:user/:friend', (req, res) => {
+  const user = sanitizeUsername(req.params.user);
+  const friend = sanitizeUsername(req.params.friend);
 
-    res.json(msgs);
-  } catch (err) {
-    console.error('/dm GET error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
+  const messages = dmMessages.filter(
+    (m) =>
+      (m.from === user && m.to === friend) ||
+      (m.from === friend && m.to === user)
+  );
+
+  return res.json(messages);
 });
 
-appExpress.post('/dm', (req, res) => {
-  try {
-    const { from, to, text } = req.body || {};
+webApp.post('/dm', (req, res) => {
+  const from = sanitizeUsername(req.body?.from);
+  const to = sanitizeUsername(req.body?.to);
+  const text = String(req.body?.text || '').trim();
 
-    if (!from || !to || !text) {
-      return res.status(400).json({ error: 'Пустое сообщение' });
-    }
-    if (!areFriends(from, to)) {
-      return res.status(403).json({ error: 'DM доступны только друзьям' });
-    }
-
-    db.dms.push({
-      id: crypto.randomUUID(),
-      from,
-      to,
-      text,
-      createdAt: Date.now()
-    });
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/dm POST error:', err);
-    res.status(500).json({ error: 'server error' });
+  if (!from || !to || !text) {
+    return res.status(400).json({ error: 'Неверные данные' });
   }
+
+  if (!areFriends(from, to)) {
+    return res.status(403).json({ error: 'Вы не друзья' });
+  }
+
+  const replyTo = req.body?.replyTo || null;
+
+  const message = {
+    id: createId(),
+    from,
+    to,
+    text: text.slice(0, 4000),
+    createdAt: new Date().toISOString(),
+    read: false,
+    replyTo: replyTo ? {
+      id: replyTo.id,
+      from: replyTo.from,
+      text: String(replyTo.text || '').slice(0, 200)
+    } : null
+  };
+
+  dmMessages.push(message);
+  saveDmMessages();
+
+  sendDmToParticipants(message);
+
+  return res.json({ ok: true, message });
 });
 
-appExpress.post('/dm-delete', (req, res) => {
-  try {
-    const { id, username } = req.body || {};
-    const msg = db.dms.find((m) => m.id === id);
+webApp.post('/dm-read', (req, res) => {
+  const user = sanitizeUsername(req.body?.user);
+  const friend = sanitizeUsername(req.body?.friend);
 
-    if (!msg) {
-      return res.status(404).json({ error: 'Сообщение не найдено' });
+  let changed = false;
+
+  dmMessages.forEach((m) => {
+    if (m.to === user && m.from === friend && !m.read) {
+      m.read = true;
+      changed = true;
     }
-    if (msg.from !== username) {
-      return res.status(403).json({ error: 'Можно удалять только свои сообщения' });
-    }
-
-    db.dms = db.dms.filter((m) => m.id !== id);
-    saveDB();
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/dm-delete error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-appExpress.get('/dm-unread/:user', (req, res) => {
-  try {
-    const user = req.params.user;
-    const result = {};
-    const friends = db.friends[user] || [];
-
-    for (const friend of friends) {
-      const key = dmKey(user, friend);
-      const lastRead = db.dmReadState[key] || 0;
-
-      result[friend] = db.dms.filter(
-        (m) => m.from === friend && m.to === user && m.createdAt > lastRead
-      ).length;
-    }
-
-    res.json(result);
-  } catch (err) {
-    console.error('/dm-unread error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-appExpress.post('/dm-read', (req, res) => {
-  try {
-    const { user, friend } = req.body || {};
-    if (!user || !friend) {
-      return res.status(400).json({ error: 'Нет user/friend' });
-    }
-
-    db.dmReadState[dmKey(user, friend)] = Date.now();
-    saveDB();
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/dm-read error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-appExpress.post('/dm-typing', (req, res) => {
-  try {
-    const { from, to, isTyping } = req.body || {};
-
-    if (!from || !to) {
-      return res.status(400).json({ error: 'Нет from/to' });
-    }
-
-    const key = `${from}::${to}`;
-    db.dmTyping[key] = {
-      from,
-      to,
-      isTyping: !!isTyping,
-      updatedAt: Date.now()
-    };
-
-    saveDB();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/dm-typing POST error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-appExpress.get('/dm-typing/:from/:to', (req, res) => {
-  try {
-    const { from, to } = req.params;
-    const key = `${from}::${to}`;
-    const state = db.dmTyping[key];
-
-    if (!state) {
-      return res.json({ isTyping: false });
-    }
-
-    const fresh = Date.now() - state.updatedAt < 2500;
-    res.json({ isTyping: fresh && !!state.isTyping });
-  } catch (err) {
-    console.error('/dm-typing GET error:', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-// ---------- HTTP ----------
-
-const httpServer = appExpress.listen(HTTP_PORT, HTTP_HOST, () => {
-  console.log(`HTTP server running on ${HTTP_HOST}:${HTTP_PORT}`);
-});
-
-// ---------- GLOBAL CHAT + ONLINE ----------
-
-const wssText = new WebSocket.Server({ server: httpServer });
-const onlineCounts = new Map();
-const textSocketToUser = new Map();
-
-function broadcastText(payload) {
-  const msg = JSON.stringify(payload);
-  for (const client of wssText.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(msg);
-    }
-  }
-}
-
-function getOnlineUsers() {
-  return Array.from(onlineCounts.entries())
-    .filter(([, count]) => count > 0)
-    .map(([username]) => username)
-    .sort();
-}
-
-function broadcastOnline() {
-  broadcastText({
-    type: 'online-users',
-    users: getOnlineUsers()
   });
-}
+
+  if (changed) {
+    saveDmMessages();
+  }
+
+  sendUnreadSnapshot(user);
+  sendUnreadSnapshot(friend);
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/dm-delete', (req, res) => {
+  const id = String(req.body?.id || '');
+  const username = sanitizeUsername(req.body?.username);
+
+  const idx = dmMessages.findIndex((m) => m.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Сообщение не найдено' });
+  }
+
+  const message = dmMessages[idx];
+  if (message.from !== username) {
+    return res.status(403).json({ error: 'Можно удалить только своё сообщение' });
+  }
+
+  dmMessages.splice(idx, 1);
+  saveDmMessages();
+  sendDmDeleteToParticipants(message);
+
+  return res.json({ ok: true });
+});
+
+webApp.post('/dm-edit', (req, res) => {
+  const id = String(req.body?.id || '');
+  const username = sanitizeUsername(req.body?.username);
+  const newText = String(req.body?.text || '').trim();
+
+  if (!id || !username || !newText) {
+    return res.status(400).json({ error: 'Неверные данные' });
+  }
+
+  const message = dmMessages.find((m) => m.id === id);
+
+  if (!message) {
+    return res.status(404).json({ error: 'Сообщение не найдено' });
+  }
+
+  if (message.from !== username) {
+    return res.status(403).json({ error: 'Можно редактировать только своё сообщение' });
+  }
+
+  message.text = newText.slice(0, 4000);
+  message.edited = true;
+
+  saveDmMessages();
+
+  // уведомляем клиентов
+  const payload = JSON.stringify({
+    type: 'dm-edit',
+    message
+  });
+
+  textClients.forEach((client) => {
+    try {
+      if (
+        client.ws.readyState === 1 &&
+        (client.username === message.from || client.username === message.to)
+      ) {
+        client.ws.send(payload);
+      }
+    } catch (_) {}
+  });
+
+  return res.json({ ok: true, message });
+});
+
+// ---------- HTTP START ----------
+
+const httpServer = webApp.listen(CONFIG.HTTP_PORT, '0.0.0.0', () => {
+  const radminHost = pickBestServerIp();
+  const vpn = getVpnNetworkInfo();
+
+  console.log('');
+  console.log('========== MiniDiscord / Radmin VPN ==========');
+  console.log(`HTTP:  http://${radminHost}:${CONFIG.HTTP_PORT}`);
+  console.log(`Voice: ws://${radminHost}:${CONFIG.VOICE_PORT}`);
+  if (vpn.hasVpn) {
+    console.log('VPN:   обнаружен (' + vpn.vpnAdapters.map((a) => `${a.name}=${a.address}`).join(', ') + ')');
+  } else {
+    console.log('VPN:   Radmin/Hamachi не найден — включи VPN на этом ПК');
+  }
+  console.log('Клиентам в config.js укажи SERVER_HOST=' + radminHost);
+  console.log('==============================================');
+  console.log('');
+  console.log(`Data dir: ${DATA_DIR}`);
+
+  if (!electronApp) {
+    startDiscoveryService(() => ({
+      host: radminHost,
+      httpPort: CONFIG.HTTP_PORT,
+      voicePort: CONFIG.VOICE_PORT
+    }));
+  }
+});
+
+// ---------- TEXT WS ----------
+
+const wssText = new WebSocketServer({ server: httpServer });
 
 wssText.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'global-history', messages: db.globalMessages }));
-
   ws.on('message', (raw) => {
+    let data;
     try {
-      const data = JSON.parse(raw.toString());
+      data = JSON.parse(raw.toString());
+    } catch (_) {
+      return;
+    }
 
-      if (data.type === 'join' && data.username) {
-        const prevUser = textSocketToUser.get(ws);
-        if (prevUser && onlineCounts.has(prevUser)) {
-          const next = Math.max(0, (onlineCounts.get(prevUser) || 1) - 1);
-          if (next === 0) onlineCounts.delete(prevUser);
-          else onlineCounts.set(prevUser, next);
+    if (data.type === 'join') {
+      const username = sanitizeUsername(data.username);
+      if (!username) return;
+
+      ensureUserCollections(username);
+
+      const existing = textClients.find((c) => c.username === username);
+      if (!existing) {
+        textClients.push({ username, ws });
+      } else {
+        existing.ws = ws;
+      }
+
+      ws.username = username;
+
+      onlinePresence.set(username, {
+        status: profiles[username]?.status || 'online',
+        ws
+      });
+
+      try {
+        ws.send(JSON.stringify({
+          type: 'global-history',
+          messages: globalMessages
+        }));
+      } catch (_) {}
+
+      sendUnreadSnapshot(username);
+      broadcastOnlineUsers();
+      return;
+    }
+
+    if (data.type === 'global-message') {
+      const username = sanitizeUsername(data.username);
+      const text = String(data.text || '').trim();
+      if (!username || !text) return;
+
+      ensureProfile(username);
+
+      const message = {
+        id: createId(),
+        username,
+        text: text.slice(0, 4000),
+        createdAt: new Date().toISOString()
+      };
+
+      globalMessages.push(message);
+
+      if (globalMessages.length > 1000) {
+        globalMessages = globalMessages.slice(-1000);
+      }
+
+      saveGlobalMessages();
+      broadcastGlobalMessage(message);
+      return;
+    }
+
+    if (data.type === 'dm-typing') {
+      const from = sanitizeUsername(data.from);
+      const to = sanitizeUsername(data.to);
+      if (!from || !to) return;
+      sendTyping(from, to, !!data.isTyping);
+      return;
+    }
+	
+	if (data.type === 'call-start') {
+	  const from = sanitizeUsername(data.from);
+	  const to = sanitizeUsername(data.to);
+
+	  if (!from || !to || from === to) return;
+	  if (!areFriends(from, to)) return;
+
+	  const existing = Array.from(activeCalls.values()).find((call) =>
+	    call &&
+	    call.status === 'ringing' &&
+	    (
+	      (call.from === from && call.to === to) ||
+	      (call.from === to && call.to === from)
+	    )
+	  );
+
+	  if (existing) {
+	    sendTextEventToUser(from, {
+	      type: 'call-error',
+	      to,
+	      error: 'Звонок уже активен'
+	    });
+	    return;
+	  }
+
+	  const targetClient = getTextClientByUsername(to);
+	  if (!targetClient) {
+	    sendTextEventToUser(from, {
+	      type: 'call-error',
+	      to,
+	      error: 'Пользователь не в сети'
+	    });
+	    return;
+	  }
+
+	  const callId = createId();
+	  const roomId = createPrivateCallRoom(from, to);
+
+	  activeCalls.set(callId, {
+	    id: callId,
+	    from,
+	    to,
+	    roomId,
+	    createdAt: Date.now(),
+	    status: 'ringing'
+	  });
+
+	  sendTextEventToUser(to, {
+	    type: 'incoming-call',
+	    callId,
+	    from,
+	    roomId
+	  });
+
+	  sendTextEventToUser(from, {
+	    type: 'outgoing-call',
+	    callId,
+	    to,
+	    roomId
+	  });
+
+	  setTimeout(() => {
+	    const call = activeCalls.get(callId);
+	    if (!call || call.status !== 'ringing') return;
+
+	    sendTextEventToUser(call.from, {
+	      type: 'call-timeout',
+	      callId,
+	      to: call.to
+	    });
+
+	    sendTextEventToUser(call.to, {
+	      type: 'call-missed',
+	      callId,
+	      from: call.from
+	    });
+
+	    cleanupCall(callId);
+	  }, 30000);
+
+	  return;
+	}
+
+	if (data.type === 'call-accept') {
+	  const callId = String(data.callId || '');
+	  const username = sanitizeUsername(data.username);
+
+	  const call = activeCalls.get(callId);
+	  if (!call || call.status !== 'ringing') return;
+	  if (call.to !== username) return;
+
+	  call.status = 'accepted';
+
+	  sendTextEventToUser(call.from, {
+	    type: 'call-accepted',
+	    callId,
+	    by: username,
+	    roomId: call.roomId
+	  });
+
+	  sendTextEventToUser(call.to, {
+	    type: 'call-accepted',
+	    callId,
+	    by: username,
+	    roomId: call.roomId
+	  });
+
+	  cleanupCall(callId);
+	  return;
+	}
+
+	if (data.type === 'call-decline') {
+	  const callId = String(data.callId || '');
+	  const username = sanitizeUsername(data.username);
+
+	  const call = activeCalls.get(callId);
+	  if (!call || call.status !== 'ringing') return;
+	  if (call.to !== username) return;
+
+	  call.status = 'declined';
+
+	  sendTextEventToUser(call.from, {
+	    type: 'call-declined',
+	    callId,
+	    by: username
+	  });
+
+	  cleanupCall(callId);
+	  return;
+	}
+
+	if (data.type === 'call-cancel') {
+	  const callId = String(data.callId || '');
+	  const username = sanitizeUsername(data.username);
+
+	  const call = activeCalls.get(callId);
+	  if (!call) return;
+	  if (call.from !== username) return;
+
+	  sendTextEventToUser(call.to, {
+	    type: 'call-cancelled',
+	    callId,
+	    by: username
+	  });
+
+	  cleanupCall(callId);
+	  return;
+	}
+
+    if (data.type === 'status-update') {
+      const username = sanitizeUsername(data.username);
+      const status = data.status;
+
+      if (username && isValidStatus(status)) {
+        const profile = ensureProfile(username);
+        profile.status = status;
+        profiles[username] = profile;
+        saveProfiles();
+
+        if (onlinePresence.has(username)) {
+          onlinePresence.get(username).status = status;
         }
 
-        textSocketToUser.set(ws, data.username);
-        onlineCounts.set(data.username, (onlineCounts.get(data.username) || 0) + 1);
-        broadcastOnline();
-        return;
+        broadcastStatusUpdated(username, status);
       }
+      return;
+    }
 
-      if (data.type === 'global-message' && data.username && data.text) {
-        const message = {
-          id: crypto.randomUUID(),
-          username: data.username,
-          text: data.text,
-          createdAt: Date.now()
+    if (data.type === 'profile-updated') {
+      const profile = data.profile;
+
+      if (profile && profile.username) {
+        profiles[profile.username] = {
+          ...ensureProfile(profile.username),
+          ...profile
         };
 
-        db.globalMessages.push(message);
-        saveDB();
+        saveProfiles();
 
-        broadcastText({ type: 'global-message', message });
+        if (onlinePresence.has(profile.username)) {
+          onlinePresence.get(profile.username).status =
+            profiles[profile.username].status || 'online';
+        }
+
+        broadcastProfileUpdated(profiles[profile.username]);
       }
-    } catch (err) {
-      console.error('Text WS error:', err);
     }
   });
 
   ws.on('close', () => {
-    const username = textSocketToUser.get(ws);
-    if (username) {
-      const next = Math.max(0, (onlineCounts.get(username) || 1) - 1);
-      if (next === 0) onlineCounts.delete(username);
-      else onlineCounts.set(username, next);
+    removeTextClient(ws);
 
-      textSocketToUser.delete(ws);
-      broadcastOnline();
+    if (ws.username) {
+      const closedUser = ws.username;
+
+      Array.from(activeCalls.entries()).forEach(([callId, call]) => {
+        if (!call) return;
+  
+        if (call.from === closedUser || call.to === closedUser) {
+          const otherUser = call.from === closedUser ? call.to : call.from;
+
+          sendTextEventToUser(otherUser, {
+            type: 'call-cancelled',
+            callId,
+            by: closedUser
+          });
+
+          cleanupCall(callId);
+        }
+      });
+
+      onlinePresence.delete(ws.username);
+      broadcastOnlineUsers();
     }
   });
 });
 
-// ---------- VOICE SIGNALING ----------
+// ---------- VOICE WS ----------
 
-const wssVoice = new WebSocket.Server({ host: HTTP_HOST, port: VOICE_PORT });
-const voiceChannels = {};
+const voiceHttpServer = http.createServer();
+voiceHttpServer.listen(CONFIG.VOICE_PORT, '0.0.0.0', () => {
+  console.log(`Voice WS server started on ws://0.0.0.0:${CONFIG.VOICE_PORT}`);
+});
 
-function ensureVoiceChannel(channelName) {
-  if (!voiceChannels[channelName]) {
-    voiceChannels[channelName] = {};
-  }
-  return voiceChannels[channelName];
-}
-
-function voiceMembers(channelName) {
-  const channel = voiceChannels[channelName] || {};
-  return Object.entries(channel)
-    .map(([name, state]) => ({
-      username: name,
-      muted: !!state.muted
-    }))
-    .sort((a, b) => a.username.localeCompare(b.username));
-}
-
-function broadcastVoiceRoster(channelName) {
-  const channel = voiceChannels[channelName] || {};
-  const members = voiceMembers(channelName);
-
-  for (const state of Object.values(channel)) {
-    if (state.ws.readyState === WebSocket.OPEN) {
-      state.ws.send(JSON.stringify({ type: 'voice-members', members }));
-    }
-  }
-}
+const wssVoice = new WebSocketServer({ server: voiceHttpServer });
 
 wssVoice.on('connection', (ws) => {
-  let username = null;
-  let currentChannel = null;
-
   ws.on('message', (raw) => {
+    let data;
     try {
-      const data = JSON.parse(raw.toString());
+      data = JSON.parse(raw.toString());
+    } catch (_) {
+      return;
+    }
 
-      if (data.type === 'join-channel') {
-        username = data.username;
-        currentChannel = data.channel || 'General';
+    if (data.type === 'join-channel') {
+      const username = sanitizeUsername(data.username);
+      const channelName = String(data.channel || 'General');
 
-        const channel = ensureVoiceChannel(currentChannel);
-        channel[username] = {
-          ws,
-          muted: false
-        };
+      if (!username) return;
 
-        const existingMembers = voiceMembers(currentChannel)
-          .filter((m) => m.username !== username)
-          .map((m) => m.username);
+      ensureProfile(username);
 
-        ws.send(JSON.stringify({ type: 'channel-members', members: existingMembers }));
-
-        for (const [memberName, memberState] of Object.entries(channel)) {
-          if (memberName !== username && memberState.ws.readyState === WebSocket.OPEN) {
-            memberState.ws.send(JSON.stringify({ type: 'new-peer', peerId: username }));
-          }
-        }
-
-        broadcastVoiceRoster(currentChannel);
-        return;
+      if (!voiceChannels.has(channelName)) {
+        voiceChannels.set(channelName, {
+          members: new Map()
+        });
       }
 
-      if (data.type === 'voice-mute-state') {
-        const channel = voiceChannels[currentChannel];
-        if (channel && username && channel[username]) {
-          channel[username].muted = !!data.muted;
-          broadcastVoiceRoster(currentChannel);
-        }
-        return;
-      }
+      const channel = voiceChannels.get(channelName);
+      const existingPeers = Array.from(channel.members.keys()).filter((u) => u !== username);
 
-      if (['offer', 'answer', 'ice-candidate'].includes(data.type)) {
-        const targetState = voiceChannels[currentChannel]?.[data.to];
-        if (targetState && targetState.ws.readyState === WebSocket.OPEN) {
-          targetState.ws.send(JSON.stringify({ ...data, from: username }));
-        }
-        return;
-      }
+      channel.members.set(username, {
+        ws,
+        muted: false,
+        speaking: false
+      });
 
-      if (data.type === 'leave-channel') {
-        const channel = voiceChannels[currentChannel];
-        if (channel && username && channel[username]) {
-          delete channel[username];
+      ws.username = username;
+      ws.channelName = channelName;
 
-          for (const state of Object.values(channel)) {
-            if (state.ws.readyState === WebSocket.OPEN) {
-              state.ws.send(JSON.stringify({ type: 'leave', username }));
+      try {
+        ws.send(JSON.stringify({
+          type: 'channel-members',
+          members: existingPeers
+        }));
+      } catch (_) {}
+
+      const notifyPayload = JSON.stringify({
+        type: 'new-peer',
+        peerId: username
+      });
+
+      channel.members.forEach((info, memberName) => {
+        if (memberName !== username) {
+          try {
+            if (info.ws.readyState === 1) {
+              info.ws.send(notifyPayload);
             }
-          }
-
-          if (Object.keys(channel).length === 0) {
-            delete voiceChannels[currentChannel];
-          } else {
-            broadcastVoiceRoster(currentChannel);
-          }
+          } catch (_) {}
         }
-      }
-    } catch (err) {
-      console.error('Voice WS error:', err);
+      });
+
+      broadcastVoiceMembers(channelName);
+      return;
+    }
+
+    if (data.type === 'voice-mute-state') {
+      const channelName = ws.channelName;
+      const username = ws.username;
+      if (!channelName || !username) return;
+
+      const channel = voiceChannels.get(channelName);
+      if (!channel || !channel.members.has(username)) return;
+
+      channel.members.get(username).muted = !!data.muted;
+      broadcastVoiceMembers(channelName);
+      return;
+    }
+
+    if (data.type === 'speaking') {
+      broadcastSpeaking(ws, !!data.speaking);
+      return;
+    }
+
+    if (data.type === 'leave-channel') {
+      removeVoicePeer(ws);
+      return;
+    }
+
+    if (data.type === 'offer' || data.type === 'answer' || data.type === 'ice-candidate') {
+      const to = sanitizeUsername(data.to);
+      const channelName = ws.channelName;
+      if (!to || !channelName) return;
+
+      const channel = voiceChannels.get(channelName);
+      if (!channel) return;
+
+      const target = channel.members.get(to);
+      if (!target || target.ws.readyState !== 1) return;
+
+      const payload = {
+        type: data.type,
+        from: ws.username
+      };
+
+      if (data.type === 'offer') payload.offer = data.offer;
+      if (data.type === 'answer') payload.answer = data.answer;
+      if (data.type === 'ice-candidate') payload.candidate = data.candidate;
+
+      try {
+        target.ws.send(JSON.stringify(payload));
+      } catch (_) {}
     }
   });
 
   ws.on('close', () => {
-    const channel = voiceChannels[currentChannel];
-    if (channel && username && channel[username]) {
-      delete channel[username];
-
-      for (const state of Object.values(channel)) {
-        if (state.ws.readyState === WebSocket.OPEN) {
-          state.ws.send(JSON.stringify({ type: 'leave', username }));
-        }
-      }
-
-      if (Object.keys(channel).length === 0) {
-        delete voiceChannels[currentChannel];
-      } else {
-        broadcastVoiceRoster(currentChannel);
-      }
-    }
+    removeVoicePeer(ws);
   });
 });
 
-appExpress.use((err, req, res, next) => {
-  console.error('Unhandled express error:', err);
-  res.status(500).json({ error: 'server error' });
-});
+module.exports = {
+  app: webApp,
+  httpServer,
+  wssText,
+  wssVoice
+};

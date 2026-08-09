@@ -3,253 +3,1308 @@
 <head>
   <meta charset="UTF-8" />
   <title>MiniDiscord — Вход</title>
+  <link rel="stylesheet" href="theme.css" />
   <style>
     body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #313338;
-      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.32;
+      background-image:
+        radial-gradient(circle at 12% 22%, rgba(255,255,255,0.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 24% 76%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 41% 35%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 54% 62%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 68% 18%, rgba(255,255,255,0.85) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 76% 46%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 88% 27%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 91% 74%, rgba(255,255,255,0.8) 0 1px, transparent 1.5px);
+    }
+
+    .aurora-line {
+      position: fixed;
+      right: -8%;
+      top: 14%;
+      width: 72vw;
+      height: 220px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 18% 50%, rgba(130, 104, 255, 0.18), transparent 30%),
+        linear-gradient(90deg,
+          rgba(78, 157, 255, 0) 0%,
+          rgba(86, 180, 255, 0.2) 18%,
+          rgba(140, 110, 255, 0.3) 52%,
+          rgba(89, 207, 255, 0.16) 76%,
+          rgba(255,255,255,0) 100%);
+      filter: blur(18px);
+      transform: rotate(-10deg);
+      opacity: 0.9;
+    }
+
+    .page-center {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+      padding: 18px;
       position: relative;
-      overflow: hidden;
+      z-index: 1;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 500px;
+      position: relative;
+      z-index: 1;
     }
 
     .card {
-      width: 420px;
-      background: #1e1f22;
-      border-radius: 16px;
-      padding: 24px;
-      box-sizing: border-box;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      padding: 28px 26px 22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
+        rgba(14, 17, 34, 0.78);
     }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 24px;
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
     }
 
-    p {
-      margin: 0 0 20px;
-      color: #b5bac1;
+    .hero-logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 12px 28px rgba(91, 98, 255, 0.22),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+      flex: 0 0 auto;
     }
 
-    .label {
-      font-size: 12px;
-      color: #9da3ad;
-      margin: 10px 0 6px;
+    .hero-logo img {
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 18px rgba(91,100,245,0.18));
     }
 
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      margin-bottom: 12px;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid #3f4147;
-      background: #111214;
-      color: #fff;
+    .hero-copy {
+      min-width: 0;
+    }
+
+    .hero-title {
+      margin: 0 0 6px;
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      color: var(--text);
+    }
+
+    .hero-subtitle {
+      margin: 0;
+      color: var(--muted);
       font-size: 14px;
-      outline: none;
-    }
-
-    input:focus {
-      border-color: #5865f2;
-    }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      border: 0;
-      border-radius: 10px;
-      background: #5865f2;
-      color: white;
-      font-size: 14px;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-
-    button:hover {
-      filter: brightness(1.05);
-    }
-
-    .secondary {
-      background: #3a3c43;
-    }
-
-    #status {
-      color: #ffb4b4;
-      min-height: 18px;
-      margin-top: 8px;
-      font-size: 13px;
-    }
-
-    .hint {
-      color: #9da3ad;
-      font-size: 12px;
-      margin-top: 6px;
       line-height: 1.45;
     }
 
-    #appVersion {
-      position: fixed;
-      right: 14px;
-      bottom: 10px;
-      font-size: 12px;
-      color: #9da3ad;
-      opacity: 0.75;
-      user-select: none;
+    .field-block {
+      margin-bottom: 12px;
     }
+
+    .actions {
+      margin-top: 4px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .actions button {
+      min-height: 48px;
+      width: 100%;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .discord-primary {
+      background: linear-gradient(135deg, #5b64f5, #49b7ff);
+      box-shadow: 0 14px 30px rgba(91,100,245,0.22);
+    }
+
+    .discord-secondary {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    #status {
+      min-height: 20px;
+      margin-top: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      gap: 12px;
+      font-size: 12px;
+      color: #8e949c;
+    }
+
+    .footer-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: #d6ddff;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+	
+	.login-intro {
+	  position: fixed;
+	  inset: 0;
+	  z-index: 20;
+	  display: none;
+	  align-items: center;
+	  justify-content: center;
+	  background:
+	    radial-gradient(circle at 50% 35%, rgba(91,100,245,0.16), transparent 30%),
+	    rgba(7, 10, 22, 0.72);
+	  backdrop-filter: blur(10px);
+	  opacity: 0;
+	  transition: opacity .45s ease, visibility .45s ease;
+	}
+
+	.login-intro.show {
+	  display: flex;
+	  opacity: 1;
+	}
+
+	.login-intro.hide {
+	  opacity: 0;
+	  pointer-events: none;
+	}
+
+	.login-intro-center {
+	  width: min(420px, calc(100vw - 36px));
+	  text-align: center;
+	}
+
+	.login-intro-logo {
+	  width: 96px;
+	  height: 96px;
+	  margin: 0 auto 18px;
+	  border-radius: 28px;
+	  display: flex;
+	  align-items: center;
+	  justify-content: center;
+	  background:
+	    linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+	  border: 1px solid rgba(255,255,255,0.08);
+	  box-shadow:
+	    0 18px 40px rgba(91, 98, 255, 0.24),
+	    inset 0 1px 0 rgba(255,255,255,0.08);
+	  animation: introLogoFloat 1.8s ease-in-out infinite;
+	}
+
+	.login-intro-logo img {
+	  width: 72px;
+	  height: 72px;
+	  object-fit: contain;
+	  filter: drop-shadow(0 10px 22px rgba(91,100,245,0.22));
+	}
+
+	.login-intro-title {
+	  font-size: 34px;
+	  font-weight: 900;
+	  letter-spacing: 0.03em;
+	  color: #f5f7ff;
+	  margin-bottom: 6px;
+	  animation: introFadeUp .7s ease both;
+	}
+
+	.login-intro-subtitle {
+	  font-size: 13px;
+	  color: #aeb8db;
+	  margin-bottom: 18px;
+	  animation: introFadeUp .7s ease .12s both;
+	}
+
+	.login-intro-bar {
+	  width: 220px;
+	  height: 8px;
+	  margin: 0 auto;
+	  border-radius: 999px;
+	  overflow: hidden;
+	  background: rgba(255,255,255,0.08);
+	  border: 1px solid rgba(255,255,255,0.06);
+	}
+
+	.login-intro-bar-fill {
+	  height: 100%;
+	  width: 0%;
+	  border-radius: inherit;
+	  background: linear-gradient(90deg, #5b64f5, #49b7ff);
+	  animation: introLoad 1.8s ease forwards;
+	}
+
+	.page-center {
+	  opacity: 0;
+	  transform: translateY(12px) scale(0.985);
+	  transition: opacity .45s ease, transform .45s ease;
+	}
+
+	.page-center.ready {
+	  opacity: 1;
+	  transform: translateY(0) scale(1);
+	}
+	
+	.login-intro {
+	  position: fixed;
+	  inset: 0;
+	  z-index: 40;
+	  display: flex;
+	  align-items: center;
+	  justify-content: center;
+	  background:
+	    radial-gradient(circle at 50% 38%, rgba(91,100,245,0.18), transparent 24%),
+	    rgba(7, 10, 22, 0.82);
+	  backdrop-filter: blur(10px);
+	  opacity: 1;
+	  visibility: visible;
+	  transition: opacity .5s ease, visibility .5s ease;
+	}
+
+	.login-intro.hide {
+	  opacity: 0;
+	  visibility: hidden;
+	  pointer-events: none;
+	}
+
+	.login-intro-core {
+	  width: min(420px, calc(100vw - 36px));
+	  text-align: center;
+	}
+
+	.login-intro-logo-wrap {
+	  width: 150px;
+	  height: 150px;
+	  margin: 0 auto 18px;
+	  position: relative;
+	  display: grid;
+	  place-items: center;
+	  animation: loginIntroFloat 2.8s ease-in-out infinite;
+	}
+
+	.login-intro-ring {
+	  position: absolute;
+	  inset: 0;
+	  border-radius: 36px;
+	  border: 2px solid rgba(91,100,245,0.18);
+	}
+
+	.login-intro-ring.ring-1 {
+	  animation: loginIntroSpin 8s linear infinite;
+	}
+
+	.login-intro-ring.ring-2 {
+	  inset: 12px;
+	  border-radius: 28px;
+	  border-color: rgba(73,183,255,0.18);
+	  animation: loginIntroSpinReverse 6s linear infinite;
+	}
+
+	.login-intro-logo {
+	  width: 108px;
+	  height: 108px;
+	  border-radius: 30px;
+	  overflow: hidden;
+	  display: flex;
+	  align-items: center;
+	  justify-content: center;
+	  background:
+	    linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+	  border: 1px solid rgba(255,255,255,0.08);
+	  box-shadow:
+	    0 18px 36px rgba(91,100,245,0.22),
+	    inset 0 1px 0 rgba(255,255,255,0.08);
+	}
+
+	.login-intro-logo img {
+	  width: 78px;
+	  height: 78px;
+	  object-fit: contain;
+	  display: block;
+	  filter: drop-shadow(0 10px 24px rgba(91,100,245,0.25));
+	}
+
+	.login-intro-title {
+	  font-size: 34px;
+	  font-weight: 900;
+	  color: #f5f7ff;
+	  letter-spacing: 0.03em;
+	  margin-bottom: 6px;
+	  animation: loginIntroFadeUp .7s ease both;
+	}
+
+	.login-intro-subtitle {
+	  font-size: 13px;
+	  color: #b6bfde;
+	  margin-bottom: 18px;
+	  animation: loginIntroFadeUp .7s ease .12s both;
+	}
+
+	.login-intro-progress {
+	  width: 220px;
+	  height: 8px;
+	  margin: 0 auto;
+	  border-radius: 999px;
+	  overflow: hidden;
+	  background: rgba(255,255,255,0.08);
+	  border: 1px solid rgba(255,255,255,0.06);
+	}
+
+	.login-intro-progress-fill {
+	  width: 0%;
+	  height: 100%;
+	  border-radius: inherit;
+	  background: linear-gradient(90deg, #5b64f5, #49b7ff);
+	  animation: loginIntroLoad 1.8s ease forwards;
+	}
+
+	.page-center {
+	  opacity: 0;
+	  transform: translateY(16px) scale(0.985);
+	  transition: opacity .45s ease, transform .45s ease;
+	}
+
+	.page-center.login-ready {
+	  opacity: 1;
+	  transform: translateY(0) scale(1);
+	}
+
+	@keyframes loginIntroLoad {
+	  from { width: 0%; }
+	  to { width: 100%; }
+	}
+	
+	.auth-switch {
+	  display: flex;
+	  gap: 8px;
+	  margin-bottom: 16px;
+	}
+
+	.auth-switch-btn {
+	  flex: 1;
+	  min-height: 42px;
+	  border-radius: 12px;
+	  border: 1px solid rgba(255,255,255,0.08);
+	  background: rgba(255,255,255,0.05);
+	  color: #dfe5ff;
+	  font-weight: 700;
+	  cursor: pointer;
+	  transition: .18s ease;
+	}
+
+	.auth-switch-btn:hover {
+	  transform: translateY(-1px);
+	  background: rgba(255,255,255,0.08);
+	}
+
+	.auth-switch-btn.active {
+	  background: linear-gradient(135deg, #5b64f5, #49b7ff);
+	  border-color: transparent;
+	  color: #fff;
+	  box-shadow: 0 12px 28px rgba(91,100,245,0.22);
+	}
+
+	.auth-animated {
+	  transition:
+	    opacity .22s ease,
+	    transform .22s ease,
+	    filter .22s ease;
+	  will-change: opacity, transform, filter;
+	}
+
+	.auth-animated.switch-out {
+	  opacity: 0;
+	  transform: translateY(10px) scale(0.985);
+	  filter: blur(4px);
+	  pointer-events: none;
+	}
+
+	.auth-animated.switch-in {
+	  opacity: 1;
+	  transform: translateY(0) scale(1);
+	  filter: blur(0);
+	}
+
+	.auth-status-line {
+	  min-height: 20px;
+	}
+	
+	.auth-error-flash {
+	  animation: authErrorFlash .55s ease;
+	}
+	
+	.input-error {
+	  border-color: rgba(218,55,60,0.55) !important;
+	  box-shadow: 0 0 0 2px rgba(218,55,60,0.12);
+	}
+
+	.input-error::placeholder {
+	  color: #ffb0b0;
+	}
+	
+	.auth-success-flash {
+	  animation: authSuccessFlash .6s ease;
+	}
+
+	.btn-loading {
+	  position: relative;
+	  color: transparent !important;
+	  pointer-events: none;
+	}
+
+	.btn-loading::after {
+	  content: "";
+	  position: absolute;
+	  width: 18px;
+	  height: 18px;
+	  border-radius: 50%;
+	  border: 2px solid rgba(255,255,255,0.28);
+	  border-top-color: #ffffff;
+	  animation: btnSpin .8s linear infinite;
+	}
+
+	@keyframes loginIntroFloat {
+	  0%, 100% { transform: translateY(0); }
+	  50% { transform: translateY(-6px); }
+	}
+
+	@keyframes loginIntroSpin {
+	  from { transform: rotate(0deg); }
+	  to { transform: rotate(360deg); }
+	}
+
+	@keyframes loginIntroSpinReverse {
+	  from { transform: rotate(360deg); }
+	  to { transform: rotate(0deg); }
+	}
+
+	@keyframes loginIntroFadeUp {
+	  from {
+	    opacity: 0;
+	    transform: translateY(14px);
+	  }
+	  to {
+	    opacity: 1;
+	    transform: translateY(0);
+	  }
+	}
+
+	@keyframes introLoad {
+	  from { width: 0%; }
+	  to { width: 100%; }
+	}
+
+	@keyframes introLogoFloat {
+	  0%, 100% { transform: translateY(0); }
+	  50% { transform: translateY(-6px); }
+	}
+
+	@keyframes introFadeUp {
+	  from {
+	    opacity: 0;
+	    transform: translateY(12px);
+	  }
+	  to {
+	    opacity: 1;
+	    transform: translateY(0);
+	  }
+	}
+	
+	.auth-shake {
+	  animation: authShake .42s ease;
+	}
+	
+	@keyframes authShake {
+	  0%   { transform: translateX(0); }
+	  15%  { transform: translateX(-10px); }
+	  30%  { transform: translateX(9px); }
+	  45%  { transform: translateX(-7px); }
+	  60%  { transform: translateX(6px); }
+	  75%  { transform: translateX(-3px); }
+	  100% { transform: translateX(0); }
+	}
+	
+	@keyframes authErrorFlash {
+	  0% {
+	    box-shadow: 0 0 0 rgba(218,55,60,0);
+	    border-color: rgba(255,255,255,0.08);
+	  }
+	  30% {
+	    box-shadow:
+	      0 0 0 2px rgba(218,55,60,0.18),
+	      0 0 26px rgba(218,55,60,0.22);
+	    border-color: rgba(218,55,60,0.5);
+	  }
+	  100% {
+	    box-shadow: 0 0 0 rgba(218,55,60,0);
+	    border-color: rgba(255,255,255,0.08);
+	  }
+	}
+	
+	@keyframes authSuccessFlash {
+	  0% {
+	    box-shadow: 0 0 0 rgba(87,217,140,0);
+	    border-color: rgba(255,255,255,0.08);
+	  }
+	  30% {
+	    box-shadow:
+	      0 0 0 2px rgba(87,217,140,0.18),
+	      0 0 26px rgba(87,217,140,0.22);
+	    border-color: rgba(87,217,140,0.5);
+	  }
+	  100% {
+	    box-shadow: 0 0 0 rgba(87,217,140,0);
+	    border-color: rgba(255,255,255,0.08);
+	  }
+	}
+	
+	@keyframes btnSpin {
+	  from { transform: rotate(0deg); }
+	  to { transform: rotate(360deg); }
+	}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>MiniDiscord</h1>
-    <p>Вход или регистрация</p>
-
-    <div class="label">Адрес сервера</div>
-    <input id="serverHost" placeholder="Например: 25.10.20.30 или 26.55.77.99" />
-
-    <div class="label">Логин</div>
-    <input id="user" placeholder="Логин" />
-
-    <div class="label">Пароль</div>
-    <input id="pass" type="password" placeholder="Пароль" />
-
-    <button onclick="login()">Войти</button>
-    <button class="secondary" onclick="registerUser()">Регистрация</button>
-
-    <div class="hint">
-      Для локального запуска можно оставить <b>127.0.0.1</b>.<br />
-      Для подключения с другого ПК укажи IP хоста в Hamachi или Radmin VPN.
+  <div class="app-titlebar" ondblclick="toggleMaximize()">
+    <div class="app-titlebar-left">
+      <div class="app-titlebar-logo">
+        <img src="logo.png" alt="logo" />
+      </div>
+      <div class="app-titlebar-title">MiniDiscord</div>
+      <div class="app-titlebar-subtitle">Galaxy Login</div>
     </div>
 
-    <div id="status"></div>
+    <div class="app-titlebar-right">
+      <button class="window-btn" onclick="minimizeWindow()" aria-label="Свернуть">
+        <span class="window-icon minimize"></span>
+      </button>
+      <button class="window-btn" onclick="toggleMaximize()" aria-label="Развернуть">
+        <span class="window-icon maximize" id="maxIcon"></span>
+      </button>
+      <button class="window-btn close" onclick="closeWindow()" aria-label="Закрыть">
+        <span style="font-size:14px; line-height:1;">✕</span>
+      </button>
+    </div>
   </div>
 
-  <div id="appVersion">v...</div>
+  <div class="stars"></div>
+  <div class="aurora-line"></div>
+  <div class="ambient">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+  </div>
+  <div class="noise"></div>
+  
+  <div id="loginIntro" class="login-intro">
+    <div class="login-intro-core">
+      <div class="login-intro-logo-wrap">
+        <div class="login-intro-ring ring-1"></div>
+        <div class="login-intro-ring ring-2"></div>
+
+        <div class="login-intro-logo">
+          <img src="logo.png" alt="MiniDiscord" />
+        </div>
+      </div>
+
+      <div class="login-intro-title">MiniDiscord</div>
+      <div class="login-intro-subtitle">Galaxy Login</div>
+
+      <div class="login-intro-progress">
+        <div class="login-intro-progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-center">
+    <div class="shell" id="authCard">
+      <div class="ui-top-glow"></div>
+
+      <div class="hero auth-animated switch-in" id="authHero">
+        <div class="hero-logo">
+          <img src="logo.png" alt="MiniDiscord logo" />
+        </div>
+        <div class="hero-copy">
+          <div class="hero-title" id="authTitle">Вход</div>
+          <p class="hero-subtitle" id="authSubtitle">Войди в MiniDiscord</p>
+        </div>
+      </div>
+
+        <div class="ui-divider" style="margin:8px 0 18px;"></div>
+		
+		<div class="auth-switch" id="authSwitch">
+		  <button id="loginModeBtn" class="auth-switch-btn active" type="button">Вход</button>
+		  <button id="registerModeBtn" class="auth-switch-btn" type="button">Регистрация</button>
+		</div>
+
+        <div class="field-block auth-animated switch-in" id="authFieldsUser">
+          <div class="ui-section-label" style="margin:0 0 6px;">Логин</div>
+          <input id="user" class="ui-input" placeholder="Введите логин" />
+        </div>
+		
+		<div class="field-block auth-animated switch-in" id="authFieldsEmail" style="display:none;">
+		  <div class="ui-section-label" style="margin:0 0 6px;">Почта</div>
+		  <input id="email" class="ui-input" type="email" placeholder="Введите почту" />
+		</div>
+
+        <div class="field-block auth-animated switch-in" id="authFieldsPass">
+          <div class="ui-section-label" style="margin:0 0 6px;">Пароль</div>
+          <input id="pass" class="ui-input" type="password" placeholder="Введите пароль" />
+        </div>
+		
+		<div class="field-block auth-animated switch-in" id="authFieldsCode" style="display:none;">
+		  <div class="ui-section-label" style="margin:0 0 6px;">Код из почты</div>
+		  <input id="emailCode" class="ui-input" placeholder="Введите 6-значный код" />
+		</div>
+
+        <div class="actions auth-animated switch-in" id="authActions">
+          <button id="mainActionBtn" type="button" class="ui-btn discord-primary">Войти</button>
+        </div>
+		
+		<div class="auth-animated switch-in" id="forgotPasswordWrap" style="margin-top:8px;">
+  
+		  <div id="forgotToggle" style="text-align:center;">
+		    <a id="forgotPasswordLink" href="#" style="color:#8ea2ff; font-size:13px; text-decoration:none;">
+		      Забыли пароль?
+		    </a>
+		  </div>
+
+		  <div id="forgotForm" style="display:none; margin-top:10px;">
+		    <input id="forgotEmail" class="ui-input" type="email" placeholder="Введите почту" />
+		    <button id="forgotSendBtn" class="ui-btn discord-secondary" style="margin-top:8px;">
+		      Отправить ссылку
+		    </button>
+		  </div>
+
+		</div>
+		
+		<div class="actions auth-animated switch-in" id="verifyActions" style="display:none; margin-top:10px;">
+		  <button id="verifyEmailBtn" type="button" class="ui-btn discord-primary">Подтвердить почту</button>
+		  <button id="resendCodeBtn" type="button" class="ui-btn discord-secondary">Отправить код ещё раз</button>
+		</div>
+
+        <div class="ui-meta" style="margin-top:16px;">
+          <div class="ui-meta-line">Сервер уже встроен в приложение.</div>
+          <div class="ui-meta-line">Другу не нужно вводить IP вручную.</div>
+          <div class="ui-meta-line" id="serverInfo">Сервер: загрузка...</div>
+        </div>
+
+        <div id="status" class="ui-status-error auth-animated switch-in"></div>
+
+        <div class="footer-row auth-animated switch-in" id="authFooter">
+          <div class="footer-pill" id="authFooterText">Нет аккаунта? Переключись на регистрацию.</div>
+          <div id="appVersion">v...</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const { ipcRenderer } = require('electron');
+    const CONFIG = require('../config');
 
-    const DEFAULT_HOST = localStorage.getItem('mini-discord-server-host') || '127.0.0.1';
-    document.getElementById('serverHost').value = DEFAULT_HOST;
+    let apiBase = CONFIG.API_BASE;
+    let serverHostLabel = CONFIG.SERVER_HOST;
+
+    function getApiBase() {
+      return apiBase;
+    }
+
+    const userInput = document.getElementById('user');
+    const passInput = document.getElementById('pass');
+    const mainActionBtn = document.getElementById('mainActionBtn');
+	const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+	const forgotForm = document.getElementById('forgotForm');
+	const forgotToggle = document.getElementById('forgotToggle');
+	const forgotEmailInput = document.getElementById('forgotEmail');
+	const forgotSendBtn = document.getElementById('forgotSendBtn');
+    const loginModeBtn = document.getElementById('loginModeBtn');
+    const registerModeBtn = document.getElementById('registerModeBtn');
+    const statusEl = document.getElementById('status');
+    const versionEl = document.getElementById('appVersion');
+    const serverInfoEl = document.getElementById('serverInfo');
+    const authTitleEl = document.getElementById('authTitle');
+    const authSubtitleEl = document.getElementById('authSubtitle');
+    const authFooterTextEl = document.getElementById('authFooterText');
+	const emailInput = document.getElementById('email');
+	const emailCodeInput = document.getElementById('emailCode');
+	const verifyEmailBtn = document.getElementById('verifyEmailBtn');
+	const resendCodeBtn = document.getElementById('resendCodeBtn');
+
+
+    let authMode = 'login';
+	let pendingVerificationUsername = '';
+
+    function minimizeWindow() {
+      ipcRenderer.send('window-minimize');
+    }
+
+    function toggleMaximize() {
+      ipcRenderer.send('window-toggle-maximize');
+    }
+
+    function closeWindow() {
+      ipcRenderer.send('window-close');
+    }
+	
+	function animateAuthBlocksOut() {
+	  ['authHero', 'authFieldsUser', 'authFieldsPass', 'authActions', 'authFooter'].forEach((id) => {
+	    const el = document.getElementById(id);
+	    if (!el) return;
+	    el.classList.remove('switch-in');
+	    el.classList.add('switch-out');
+	  });
+	}
+
+	function animateAuthBlocksIn() {
+	  ['authHero', 'authFieldsUser', 'authFieldsPass', 'authActions', 'authFooter'].forEach((id) => {
+	    const el = document.getElementById(id);
+	    if (!el) return;
+	    el.classList.remove('switch-out');
+	    el.classList.add('switch-in');
+	  });
+	}
+
+	function updateAuthModeUI() {
+	  const emailWrap = document.getElementById('authFieldsEmail');
+	  const codeWrap = document.getElementById('authFieldsCode');
+	  const verifyWrap = document.getElementById('verifyActions');
+
+	  if (authTitleEl) authTitleEl.textContent = authMode === 'login' ? 'Вход' : 'Регистрация';
+	  if (authSubtitleEl) {
+	    authSubtitleEl.textContent =
+	      authMode === 'login'
+	        ? 'Войди в MiniDiscord'
+	        : 'Создай новый аккаунт MiniDiscord';
+	  }
+
+	  if (mainActionBtn) {
+	    mainActionBtn.textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+	    mainActionBtn.style.display = '';
+	  }
+
+	  if (authFooterTextEl) {
+	    authFooterTextEl.textContent =
+	      authMode === 'login'
+	        ? 'Нет аккаунта? Переключись на регистрацию.'
+	        : 'Уже есть аккаунт? Переключись на вход.';
+	  }
+
+	  if (loginModeBtn) loginModeBtn.classList.toggle('active', authMode === 'login');
+	  if (registerModeBtn) registerModeBtn.classList.toggle('active', authMode === 'register');
+
+	  if (emailWrap) emailWrap.style.display = authMode === 'register' ? '' : 'none';
+	  if (codeWrap) codeWrap.style.display = 'none';
+	  if (verifyWrap) verifyWrap.style.display = 'none';
+	}
+
+	function switchAuthMode(nextMode) {
+	  if (!nextMode || nextMode === authMode) return;
+
+	  animateAuthBlocksOut();
+
+	  setTimeout(() => {
+	    authMode = nextMode;
+	    updateAuthModeUI();
+	    animateAuthBlocksIn();
+	    setStatus('');
+	  }, 180);
+	}
+
+    ipcRenderer.on('window-maximized', (_event, isMaximized) => {
+      const maxIcon = document.getElementById('maxIcon');
+      if (!maxIcon) return;
+      maxIcon.className = 'window-icon ' + (isMaximized ? 'restore' : 'maximize');
+    });
 
     ipcRenderer.on('app-version', (_event, version) => {
-      const el = document.getElementById('appVersion');
-      if (el) {
-        el.textContent = 'v' + version;
-      }
+      versionEl.textContent = 'v' + version;
+    });
+
+    ipcRenderer.on('server-host', (_event, host) => {
+      serverHostLabel = host;
+      serverInfoEl.textContent = `Сервер: ${host}:${CONFIG.HTTP_PORT}`;
+      apiBase = `http://${host}:${CONFIG.HTTP_PORT}`;
     });
 
     function setStatus(text) {
-      document.getElementById('status').textContent = text || '';
+      statusEl.textContent = text || '';
     }
 
-    function normalizeHost(input) {
-      const value = String(input || '').trim();
-      if (!value) return '127.0.0.1';
-      return value
-        .replace(/^https?:\/\//i, '')
-        .replace(/^ws:\/\//i, '')
-        .replace(/^wss:\/\//i, '')
-        .replace(/\/+$/g, '');
-    }
+    function setBusy(isBusy) {
+      if (mainActionBtn) {
+        mainActionBtn.disabled = isBusy;
+        mainActionBtn.classList.toggle('btn-loading', isBusy);
 
-    function getApiBase() {
-      const host = normalizeHost(document.getElementById('serverHost').value);
-      localStorage.setItem('mini-discord-server-host', host);
-      return `http://${host}:3000`;
+        if (!isBusy) {
+          mainActionBtn.textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+        }
+      }
+
+      if (verifyEmailBtn) verifyEmailBtn.disabled = isBusy;
+      if (resendCodeBtn) resendCodeBtn.disabled = isBusy;
+
+      userInput.disabled = isBusy;
+      passInput.disabled = isBusy;
+      if (emailInput) emailInput.disabled = isBusy;
+      if (emailCodeInput) emailCodeInput.disabled = isBusy;
+
+      if (loginModeBtn) loginModeBtn.disabled = isBusy;
+      if (registerModeBtn) registerModeBtn.disabled = isBusy;
     }
 
     async function tryRestoreSession() {
-      const token = localStorage.getItem('mini-discord-session-token');
+      const token = await ipcRenderer.invoke('get-session');
       if (!token) return;
 
       try {
-        const apiBase = getApiBase();
-
-        const res = await fetch(`${apiBase}/restore-session`, {
+        const res = await fetch(`${getApiBase()}/restore-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token })
         });
 
         const data = await res.json();
+
         if (res.ok && data.ok) {
+		  clearInputErrors();
           ipcRenderer.send('login-success', data.username);
         }
       } catch (err) {
-        console.error(err);
+        console.error('restore-session error:', err);
       }
     }
 
     async function registerUser() {
       setStatus('');
-      const username = document.getElementById('user').value.trim();
-      const password = document.getElementById('pass').value;
+
+      const username = document.getElementById('user')?.value?.trim();
+      const password = document.getElementById('pass')?.value;
+      const email = document.getElementById('email')?.value?.trim();
+
+      if (!username || !password || !email) {
+        showAuthError('Введите логин, почту и пароль', 'both');
+        return;
+      }
+
+      setBusy(true);
 
       try {
-        const apiBase = getApiBase();
-
-        const res = await fetch(`${apiBase}/register`, {
+        const res = await fetch(`${getApiBase()}/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ username, password, email })
         });
 
         const data = await res.json();
+        console.log('register data:', data);
+
         if (!res.ok || data.error) {
-          setStatus(data.error || 'Ошибка регистрации');
+          showAuthError(data?.error || 'Ошибка регистрации', 'both');
           return;
         }
 
-        setStatus('Регистрация успешна. Теперь войди.');
+        clearInputErrors();
+        flashAuthCardSuccess();
+
+        if (data?.requiresEmailVerification) {
+          openEmailVerificationState(username);
+          return;
+        }
+
+        setStatus('Регистрация успешна');
       } catch (err) {
-        console.error(err);
-        setStatus('Сервер недоступен');
+        console.error('register error:', err);
+        showAuthError('Сервер недоступен', 'both');
+      } finally {
+        setBusy(false);
       }
     }
+	
+	function playLoginIntro() {
+	  const intro = document.getElementById('loginIntro');
+	  const page = document.querySelector('.page-center');
+
+	  if (!intro || !page) return;
+
+	  setTimeout(() => {
+	    intro.classList.add('hide');
+	    page.classList.add('login-ready');
+	  }, 1900);
+	}
+	
+	function shakeAuthCard() {
+	  const card = document.getElementById('authCard');
+	  if (!card) return;
+
+	  card.classList.remove('auth-shake');
+	  void card.offsetWidth;
+	  card.classList.add('auth-shake');
+	}
+	
+	function flashAuthCardError() {
+	  const card = document.getElementById('authCard');
+	  if (!card) return;
+
+	  card.classList.remove('auth-error-flash');
+	  void card.offsetWidth;
+	  card.classList.add('auth-error-flash');
+	}
+	
+	function flashAuthCardSuccess() {
+	  const card = document.getElementById('authCard');
+	  if (!card) return;
+
+	  card.classList.remove('auth-success-flash');
+	  void card.offsetWidth;
+	  card.classList.add('auth-success-flash');
+	}
+
+	function clearInputErrors() {
+	  userInput?.classList.remove('input-error');
+	  passInput?.classList.remove('input-error');
+	}
+
+	function markInputError(target = 'both') {
+	  clearInputErrors();
+
+	  if (target === 'user' || target === 'both') {
+	    userInput?.classList.add('input-error');
+	  }
+
+	  if (target === 'pass' || target === 'both') {
+	    passInput?.classList.add('input-error');
+	  }
+	}
+
+	function showAuthError(message, target = 'both') {
+	  setStatus(message);
+	  shakeAuthCard();
+	  flashAuthCardError();
+	  markInputError(target);
+	}
+	
+	function openEmailVerificationState(username) {
+	  pendingVerificationUsername = username || userInput.value.trim().toLowerCase();
+
+	  const emailWrap = document.getElementById('authFieldsEmail');
+	  const codeWrap = document.getElementById('authFieldsCode');
+	  const verifyWrap = document.getElementById('verifyActions');
+
+	  if (authTitleEl) authTitleEl.textContent = 'Подтверждение почты';
+	  if (authSubtitleEl) authSubtitleEl.textContent = 'Введи код, который пришёл на почту';
+
+	  if (emailWrap) emailWrap.style.display = 'none';
+	  if (codeWrap) codeWrap.style.display = '';
+	  if (verifyWrap) verifyWrap.style.display = '';
+
+	  if (mainActionBtn) mainActionBtn.style.display = 'none';
+
+	  setStatus('На почту отправлен код подтверждения.');
+	}
 
     async function login() {
       setStatus('');
-      const username = document.getElementById('user').value.trim();
-      const password = document.getElementById('pass').value;
+      const username = userInput.value.trim();
+      const password = passInput.value;
+
+      if (!username || !password) {
+        showAuthError('Введите логин и пароль', 'both');
+        return;
+      }
+
+      setBusy(true);
 
       try {
-        const apiBase = getApiBase();
-
-        const res = await fetch(`${apiBase}/login`, {
+        const res = await fetch(`${getApiBase()}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({
+            username,
+            password,
+            deviceName: `MiniDiscord Desktop • ${navigator.platform || 'Unknown OS'}`
+          })
         });
 
         const data = await res.json();
-        if (!res.ok || data.error) {
-          setStatus(data.error || 'Ошибка входа');
+
+        if (data?.requiresEmailVerification) {
+          openEmailVerificationState(username);
           return;
         }
 
-        localStorage.setItem('mini-discord-session-token', data.token);
-        ipcRenderer.send('login-success', username);
+        if (!res.ok || data.error) {
+          showAuthError(data?.error || 'Ошибка входа', 'both');
+          return;
+        }
+
+        clearInputErrors();
+        setStatus('Вход выполнен');
+        flashAuthCardSuccess();
+
+        ipcRenderer.send('set-session', data.token);
+        ipcRenderer.send('login-success', data.username);
       } catch (err) {
-        console.error(err);
-        setStatus('Сервер недоступен');
+        console.error('login error:', err);
+        showAuthError('Сервер недоступен', 'both');
+      } finally {
+        setBusy(false);
+      }
+    }
+	
+	async function verifyEmailCode() {
+	  const username = pendingVerificationUsername || userInput.value.trim();
+	  const code = emailCodeInput.value.trim();
+
+	  if (!username || !code) {
+	    showAuthError('Введите код подтверждения', 'both');
+	    return;
+	  }
+
+	  setBusy(true);
+
+	  try {
+	    const res = await fetch(`${getApiBase()}/verify-email`, {
+	      method: 'POST',
+	      headers: { 'Content-Type': 'application/json' },
+	      body: JSON.stringify({ username, code })
+	    });
+
+	    const data = await res.json();
+
+	    if (!res.ok || data.error) {
+	      showAuthError(data?.error || 'Ошибка подтверждения', 'both');
+	      return;
+	    }
+
+	    clearInputErrors();
+	    flashAuthCardSuccess();
+	    setStatus('Почта подтверждена. Теперь можно войти.');
+
+	    authMode = 'login';
+	    updateAuthModeUI();
+	    emailCodeInput.value = '';
+	  } catch (err) {
+	    console.error('verify email error:', err);
+	    showAuthError('Сервер недоступен', 'both');
+	  } finally {
+	    setBusy(false);
+	  }
+	}
+
+	async function resendEmailCode() {
+	  const username = pendingVerificationUsername || userInput.value.trim();
+
+	  if (!username) {
+	    showAuthError('Сначала введи логин', 'user');
+	    return;
+	  }
+
+	  setBusy(true);
+
+	  try {
+	    const res = await fetch(`${getApiBase()}/resend-email-code`, {
+	      method: 'POST',
+	      headers: { 'Content-Type': 'application/json' },
+	      body: JSON.stringify({ username })
+	    });
+
+	    const data = await res.json();
+
+	    if (!res.ok || data.error) {
+	      showAuthError(data?.error || 'Не удалось отправить код', 'both');
+	      return;
+	    }
+
+	    setStatus('Новый код отправлен на почту.');
+	    flashAuthCardSuccess();
+	  } catch (err) {
+	    console.error('resend email code error:', err);
+	    showAuthError('Сервер недоступен', 'both');
+	  } finally {
+	    setBusy(false);
+	  }
+	}
+	
+	function toggleForgotPassword() {
+	  forgotToggle.style.display = 'none';
+	  forgotForm.style.display = '';
+	}
+
+	async function sendForgotPassword() {
+	  const email = forgotEmailInput.value.trim();
+
+	  if (!email) {
+	    showAuthError('Введите почту', 'both');
+	    return;
+	  }
+
+	  setBusy(true);
+
+	  try {
+	    const res = await fetch(`${getApiBase()}/forgot-password`, {
+	      method: 'POST',
+	      headers: { 'Content-Type': 'application/json' },
+	      body: JSON.stringify({ email })
+	    });
+
+	    const data = await res.json();
+
+	    if (!res.ok || data.error) {
+	      showAuthError(data?.error || 'Ошибка', 'both');
+	      return;
+	    }
+
+	    setStatus('Письмо отправлено (если почта существует)');
+	    flashAuthCardSuccess();
+
+	    // скрываем форму обратно
+	    forgotForm.style.display = 'none';
+	    forgotToggle.style.display = '';
+
+	  } catch (err) {
+	    console.error(err);
+	    showAuthError('Сервер недоступен', 'both');
+	  } finally {
+	    setBusy(false);
+	  }
+	}
+    mainActionBtn?.addEventListener('click', () => {
+      if (authMode === 'login') {
+        login();
+      } else {
+        registerUser();
+      }
+    });
+	
+	verifyEmailBtn?.addEventListener('click', verifyEmailCode);
+	resendCodeBtn?.addEventListener('click', resendEmailCode);
+	
+    loginModeBtn?.addEventListener('click', () => {
+      switchAuthMode('login');
+    });
+
+    registerModeBtn?.addEventListener('click', () => {
+      switchAuthMode('register');
+    });
+
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+
+      if (authMode === 'login') {
+        login();
+      } else {
+        registerUser();
+      }
+    });
+
+    passInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+
+      if (authMode === 'login') {
+        login();
+      } else {
+        registerUser();
+      }
+    });
+	
+	userInput?.addEventListener('input', () => {
+	  userInput.classList.remove('input-error');
+	});
+
+	passInput?.addEventListener('input', () => {
+	  passInput.classList.remove('input-error');
+	});
+	
+	forgotPasswordLink?.addEventListener('click', (e) => {
+	  e.preventDefault();
+	  toggleForgotPassword();
+	});
+
+	forgotSendBtn?.addEventListener('click', () => {
+	  sendForgotPassword();
+	});
+
+    updateAuthModeUI();
+
+    playLoginIntro();
+
+    async function applyServerConfig(cfg) {
+      if (!cfg?.host) return;
+
+      serverHostLabel = cfg.host;
+      apiBase = cfg.apiBase || `http://${cfg.host}:${CONFIG.HTTP_PORT}`;
+
+      const role = cfg.isLocalServer ? 'Хост' : 'Radmin';
+      serverInfoEl.textContent = `${role}: ${cfg.host}:${cfg.httpPort} | голос :${cfg.voicePort}`;
+    }
+
+    async function bootstrapNetwork() {
+      try {
+        const cfg = await ipcRenderer.invoke('get-server-config');
+        await applyServerConfig(cfg);
+        await verifyRadminServer();
+        await tryRestoreSession();
+      } catch (err) {
+        console.error('bootstrapNetwork error:', err);
+        setStatus('Не удалось подключиться. Включи Radmin VPN и открой MiniDiscord снова.');
       }
     }
 
-    document.getElementById('pass').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') login();
-    });
+    async function verifyRadminServer() {
+      try {
+        const res = await fetch(`${getApiBase()}/server-info`);
+        const data = await res.json();
 
-    document.getElementById('serverHost').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') login();
-    });
+        if (data.ok && data.host) {
+          serverHostLabel = data.host;
+          apiBase = data.apiBase || `http://${data.host}:${CONFIG.HTTP_PORT}`;
+          const role = data.hasVpn ? 'Radmin VPN' : 'Сервер';
+          serverInfoEl.textContent = `${role}: ${data.host}:${CONFIG.HTTP_PORT} | голос :${data.voicePort}`;
+        }
+      } catch (_) {
+        setStatus('Сервер недоступен. Включи Radmin VPN в одной сети с друзьями.');
+      }
+    }
 
-    tryRestoreSession();
+    bootstrapNetwork();
   </script>
 </body>
 </html>

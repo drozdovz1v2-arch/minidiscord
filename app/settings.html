@@ -2,94 +2,1532 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Настройки микрофона</title>
+  <title>MiniDiscord — Настройки</title>
+  <link rel="stylesheet" href="theme.css" />
   <style>
-    body {
+    :root {
+      --accent-1: #5b64f5;
+      --accent-2: #49b7ff;
+      --text: #eef1ff;
+      --muted: #b8c0de;
+      --danger: #da373c;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #313338;
-      color: white;
-      padding: 18px;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: 0;
+      color: var(--text);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(110, 91, 255, 0.28), transparent 26%),
+        radial-gradient(circle at 82% 22%, rgba(84, 199, 255, 0.18), transparent 24%),
+        radial-gradient(circle at 70% 78%, rgba(132, 102, 255, 0.14), transparent 22%),
+        linear-gradient(135deg, #070914 0%, #0d1022 38%, #12183a 72%, #0c1230 100%);
+    }
+
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.32;
+      background-image:
+        radial-gradient(circle at 12% 22%, rgba(255,255,255,0.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 24% 76%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 41% 35%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 54% 62%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 68% 18%, rgba(255,255,255,0.85) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 76% 46%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 88% 27%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 91% 74%, rgba(255,255,255,0.8) 0 1px, transparent 1.5px);
+    }
+
+    .aurora-line {
+      position: fixed;
+      right: -10%;
+      top: 10%;
+      width: 80vw;
+      height: 220px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 18% 50%, rgba(130, 104, 255, 0.18), transparent 30%),
+        linear-gradient(
+          90deg,
+          rgba(78, 157, 255, 0) 0%,
+          rgba(86, 180, 255, 0.2) 18%,
+          rgba(140, 110, 255, 0.3) 52%,
+          rgba(89, 207, 255, 0.16) 76%,
+          rgba(255,255,255,0) 100%
+        );
+      filter: blur(18px);
+      transform: rotate(-10deg);
+      opacity: 0.9;
+    }
+
+    .ambient {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .blob {
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(60px);
+      opacity: 0.18;
+    }
+
+    .blob.b1 {
+      width: 260px;
+      height: 260px;
+      left: -40px;
+      bottom: 30px;
+      background: rgba(91, 100, 245, 0.55);
+    }
+
+    .blob.b2 {
+      width: 260px;
+      height: 260px;
+      right: -60px;
+      top: 90px;
+      background: rgba(73, 183, 255, 0.45);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.04;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px);
+      background-size: 4px 4px;
+      mix-blend-mode: soft-light;
+    }
+
+    .app-titlebar {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px 0 12px;
       box-sizing: border-box;
+      background: rgba(7, 10, 22, 0.82);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      -webkit-app-region: drag;
+      position: relative;
+      z-index: 5;
     }
-    h2 {
-      margin-top: 0;
-      font-size: 20px;
+
+    .app-titlebar-left,
+    .app-titlebar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    label {
-      display: block;
-      margin: 14px 0 6px;
-      color: #c9ccd1;
+
+    .app-titlebar-logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
     }
-    select, input[type="range"] {
-      width: 100%;
-      box-sizing: border-box;
+
+    .app-titlebar-logo img {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
     }
-    button {
-      width: 100%;
-      margin-top: 18px;
-      padding: 12px;
+
+    .app-titlebar-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #f4f6ff;
+    }
+
+    .app-titlebar-subtitle {
+      font-size: 11px;
+      color: #8ea1d7;
+    }
+
+    .window-btn {
+      width: 34px;
+      height: 30px;
       border: 0;
       border-radius: 10px;
-      background: #5865f2;
-      color: white;
+      background: transparent;
+      color: #eef1ff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: .16s ease;
     }
-    .hint {
-      margin-top: 10px;
-      color: #9da3ad;
+
+    .window-btn:hover {
+      background: rgba(255,255,255,0.08);
+    }
+
+    .window-btn.close:hover {
+      background: rgba(218,55,60,0.18);
+    }
+
+    .window-icon {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      position: relative;
+    }
+
+    .window-icon.minimize::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 1px;
+      height: 2px;
+      background: currentColor;
+      border-radius: 999px;
+    }
+
+    .page-center {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 18px;
+      position: relative;
+      z-index: 1;
+      min-height: 0;
+      box-sizing: border-box;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1120px;
+      height: 100%;
+      display: flex;
+      min-height: 0;
+      position: relative;
+      z-index: 1;
+    }
+	
+	.ui-card.card {
+	  width: 100%;
+	  display: flex;
+	  flex-direction: column;
+	  min-height: 0;
+	  overflow: hidden;
+	}
+
+    .ui-top-glow {
+      position: absolute;
+      inset: -24px 10% auto;
+      height: 120px;
+      border-radius: 999px;
+      pointer-events: none;
+      background: radial-gradient(circle, rgba(91,100,245,0.28), transparent 70%);
+      filter: blur(26px);
+      z-index: 0;
+    }
+
+    .ui-card {
+      position: relative;
+      z-index: 1;
+      border-radius: 28px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 34px 90px rgba(0,0,0,0.46);
+      backdrop-filter: blur(18px);
+    }
+
+    .card {
+      padding: 24px 22px 20px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
+        rgba(14, 17, 34, 0.78);
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .hero-logo {
+      width: 66px;
+      height: 66px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 12px 28px rgba(91, 98, 255, 0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+      flex: 0 0 auto;
+    }
+
+    .hero-logo img {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+
+    .hero-copy {
+      min-width: 0;
+    }
+
+    .hero-title {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      color: var(--text);
+    }
+
+    .hero-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .ui-divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      border-radius: 999px;
+    }
+
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+      margin-top: 16px;
+    }
+
+    .settings-sidebar {
+      border-radius: 22px;
+      padding: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .settings-tab {
+      min-height: 44px;
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.05);
+      color: #eef1ff;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .16s ease;
+      text-align: left;
+      padding: 0 14px;
+    }
+
+    .settings-tab:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-1px);
+    }
+
+    .settings-tab.active {
+      background: linear-gradient(135deg, #5b64f5, #49b7ff);
+      border-color: transparent;
+      box-shadow: 0 12px 28px rgba(91,100,245,0.22);
+    }
+
+    .settings-content {
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .settings-panel {
+      display: none;
+      border-radius: 22px;
+      padding: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      box-sizing: border-box;
+    }
+
+    .settings-panel.active {
+      display: block;
+    }
+
+    .settings-panel-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 0 0 8px;
+    }
+
+    .settings-panel-subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 18px;
+      line-height: 1.45;
+    }
+
+    .settings-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .settings-row {
+      display: grid;
+      gap: 8px;
+    }
+
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .settings-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-1);
+    }
+
+    .ui-section-label {
       font-size: 12px;
+      color: #cdd5f4;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    .ui-select-wrap {
+      position: relative;
+    }
+
+    .ui-select,
+    .ui-input {
+      width: 100%;
+      min-height: 44px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.06);
+      color: #eef1ff;
+      padding: 0 14px;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .ui-input::placeholder {
+      color: #97a3c9;
+    }
+
+    .ui-slider-box {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .ui-slider-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: #d6ddff;
+      margin-bottom: 10px;
+    }
+
+    .ui-slider-value {
+      color: #8ecbff;
+      font-weight: 700;
+    }
+
+    .ui-range {
+      width: 100%;
+      accent-color: var(--accent-1);
+    }
+
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .actions button {
+      min-height: 46px;
+      min-width: 130px;
+      font-weight: 700;
+    }
+
+    .ui-btn {
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.06);
+      color: #eef1ff;
+      border-radius: 14px;
+      padding: 0 16px;
+      cursor: pointer;
+      transition: .16s ease;
+    }
+
+    .ui-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+    }
+
+    .discord-primary {
+      background: linear-gradient(135deg, #5b64f5, #49b7ff);
+      border-color: transparent;
+      box-shadow: 0 14px 30px rgba(91,100,245,0.22);
+    }
+
+    .discord-secondary {
+      background: rgba(255,255,255,0.07);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .ui-meta {
+      margin-top: 14px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .ui-meta-line {
+      color: #97a3c9;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #status {
+      min-height: 18px;
+      margin-top: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    .ui-status-ok {
+      color: #7ee0a0;
+    }
+
+    .ui-status-error {
+      color: #ff9b9b;
+    }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      gap: 12px;
+      font-size: 12px;
+      color: #8e949c;
+      flex-wrap: wrap;
+    }
+
+    .footer-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: #d6ddff;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+	
+	.ui-dropdown {
+	  position: relative;
+	}
+
+	.ui-dropdown-selected {
+	  padding: 12px;
+	  border-radius: 12px;
+	  background: rgba(255,255,255,0.05);
+	  cursor: pointer;
+	  border: 1px solid rgba(255,255,255,0.08);
+	}
+
+	.ui-dropdown-list {
+	  position: absolute;
+	  top: calc(100% + 6px);
+	  left: 0;
+	  right: 0;
+	  background: rgba(18,22,44,0.98);
+	  border: 1px solid rgba(255,255,255,0.08);
+	  border-radius: 12px;
+	  max-height: 200px;
+	  overflow: auto;
+	  display: none;
+	  z-index: 999999;
+	  backdrop-filter: blur(14px);
+	}
+
+	.ui-dropdown.open .ui-dropdown-list {
+	  display: block;
+	}
+
+	.ui-dropdown-item {
+	  padding: 10px;
+	  cursor: pointer;
+	}
+
+	.ui-dropdown-item:hover {
+	  background: rgba(255,255,255,0.08);
+	}
+	
+	.session-card {
+	  padding: 12px 14px;
+	  border-radius: 16px;
+	  background: rgba(255,255,255,0.04);
+	  border: 1px solid rgba(255,255,255,0.06);
+	}
+
+	.session-card-head {
+	  display: flex;
+	  align-items: center;
+	  justify-content: space-between;
+	  gap: 10px;
+	  margin-bottom: 6px;
+	}
+
+	.session-card-title {
+	  font-size: 14px;
+	  font-weight: 800;
+	  color: #eef1ff;
+	}
+
+	.session-card-badge {
+	  padding: 5px 8px;
+	  border-radius: 999px;
+	  font-size: 11px;
+	  font-weight: 700;
+	  background: rgba(87,217,140,0.14);
+	  color: #9ff0bf;
+	  border: 1px solid rgba(87,217,140,0.20);
+	}
+
+	.session-card-meta {
+	  display: grid;
+	  gap: 4px;
+	  color: #97a3c9;
+	  font-size: 12px;
+	  line-height: 1.4;
+	  margin-bottom: 10px;
+	}
+
+	.session-card-actions {
+	  display: flex;
+	  gap: 8px;
+	  flex-wrap: wrap;
+	}
+
+    @media (max-width: 900px) {
+      .settings-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-sidebar {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
   </style>
 </head>
 <body>
-  <h2>Микрофон</h2>
+  <div class="app-titlebar">
+    <div class="app-titlebar-left">
+      <div class="app-titlebar-logo">
+        <img src="logo.png" alt="logo" />
+      </div>
+      <div class="app-titlebar-title">MiniDiscord</div>
+      <div class="app-titlebar-subtitle">Galaxy Settings</div>
+    </div>
 
-  <label for="micSelect">Устройство ввода</label>
-  <select id="micSelect"></select>
+    <div class="app-titlebar-right">
+      <button class="window-btn" onclick="minimizeWindow()" aria-label="Свернуть">
+        <span class="window-icon minimize"></span>
+      </button>
+      <button class="window-btn close" onclick="closeWindow()" aria-label="Закрыть">
+        <span style="font-size:14px; line-height:1;">✕</span>
+      </button>
+    </div>
+  </div>
 
-  <label for="micVolume">Громкость микрофона</label>
-  <input id="micVolume" type="range" min="0" max="200" value="100" />
+  <div class="stars"></div>
+  <div class="aurora-line"></div>
+  <div class="ambient">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+  </div>
+  <div class="noise"></div>
 
-  <button onclick="applySettings()">Применить</button>
-  <div class="hint">Настройки применяются в уже открытом голосовом чате.</div>
+  <div class="page-center">
+    <div class="shell">
+      <div class="ui-top-glow"></div>
+
+      <div class="ui-card card">
+        <div class="hero">
+          <div class="hero-logo">
+            <img src="logo.png" alt="MiniDiscord logo" />
+          </div>
+          <div class="hero-copy">
+            <div class="hero-title">Настройки</div>
+            <p class="hero-subtitle">Звук, голос, чат, внешний вид, уведомления и приватность в одном окне.</p>
+          </div>
+        </div>
+
+        <div class="ui-divider"></div>
+
+        <div class="settings-layout">
+          <div class="settings-sidebar">
+            <button class="settings-tab active" data-tab="sound">Звук</button>
+            <button class="settings-tab" data-tab="voice">Голос</button>
+            <button class="settings-tab" data-tab="chat">Чат</button>
+            <button class="settings-tab" data-tab="appearance">Внешний вид</button>
+            <button class="settings-tab" data-tab="notifications">Уведомления</button>
+            <button class="settings-tab" data-tab="privacy">Приватность</button>
+			<button class="settings-tab" data-tab="security">Безопасность</button>
+          </div>
+
+          <div class="settings-content">
+            <div class="settings-panel active" id="panel-sound">
+              <div class="settings-panel-title">Звук</div>
+              <div class="settings-panel-subtitle">Настрой микрофон и устройство вывода.</div>
+
+              <div class="settings-grid">
+                <div class="settings-row">
+                  <div class="ui-section-label">Устройство ввода</div>
+                  <div class="ui-dropdown" id="micDropdown">
+                    <div class="ui-dropdown-selected" id="micSelected">Выбери микрофон</div>
+                    <div class="ui-dropdown-list" id="micOptions"></div>
+                  </div>
+                </div>
+
+                <div class="settings-row">
+                  <div class="ui-section-label">Устройство вывода</div>
+                  <div class="ui-select-wrap">
+                    <div class="ui-dropdown" id="speakerDropdown">
+                      <div class="ui-dropdown-selected" id="speakerSelected">По умолчанию</div>
+                      <div class="ui-dropdown-list" id="speakerOptions"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-row">
+                  <div class="ui-section-label">Громкость микрофона</div>
+                  <div class="ui-slider-box">
+                    <div class="ui-slider-top">
+                      <div>Уровень</div>
+                      <div class="ui-slider-value" id="volumeValue">100%</div>
+                    </div>
+                    <input id="micVolume" class="ui-range" type="range" min="0" max="200" value="100" />
+                  </div>
+                </div>
+
+                <label class="settings-toggle">
+                  <span>Шумоподавление</span>
+                  <input type="checkbox" id="noiseSuppression" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Эхоподавление</span>
+                  <input type="checkbox" id="echoCancellation" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Автоусиление</span>
+            <input type="checkbox" id="autoGainControl" checked />
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-panel" id="panel-voice">
+              <div class="settings-panel-title">Голос</div>
+              <div class="settings-panel-subtitle">Настрой поведение голосового чата.</div>
+
+              <div class="settings-grid">
+                <div class="settings-row">
+                  <div class="ui-section-label">Режим активации</div>
+                  <div class="ui-select-wrap">
+                    <div class="ui-dropdown" id="voiceModeDropdown">
+                      <div class="ui-dropdown-selected" id="voiceModeSelected">PTT</div>
+                      <div class="ui-dropdown-list" id="voiceModeOptions"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-row">
+                  <div class="ui-section-label">Кнопка PTT</div>
+                  <input id="pttKey" class="ui-input" placeholder="Например: V" />
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-panel" id="panel-chat">
+              <div class="settings-panel-title">Чат</div>
+              <div class="settings-panel-subtitle">Сообщения и поведение ввода.</div>
+
+              <div class="settings-grid">
+                <label class="settings-toggle">
+                  <span>Enter отправляет сообщение</span>
+                  <input type="checkbox" id="enterToSend" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Компактный режим сообщений</span>
+                  <input type="checkbox" id="compactChat" />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Показывать аватары</span>
+                  <input type="checkbox" id="showAvatars" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Показывать время сообщений</span>
+                  <input type="checkbox" id="showMessageTime" checked />
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-panel" id="panel-appearance">
+              <div class="settings-panel-title">Внешний вид</div>
+              <div class="settings-panel-subtitle">Тема и внешний стиль интерфейса.</div>
+
+              <div class="settings-grid">
+                <div class="settings-row">
+                  <div class="ui-section-label">Тема</div>
+                  <div class="ui-select-wrap">
+                    <div class="ui-dropdown" id="themeDropdown">
+                      <div class="ui-dropdown-selected" id="themeSelected">Тёмная</div>
+                      <div class="ui-dropdown-list" id="themeOptions"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-panel" id="panel-notifications">
+              <div class="settings-panel-title">Уведомления</div>
+              <div class="settings-panel-subtitle">Сообщения, заявки и звуки.</div>
+
+              <div class="settings-grid">
+                <label class="settings-toggle">
+                  <span>Уведомления о личных сообщениях</span>
+                  <input type="checkbox" id="notifyDm" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Уведомления о заявках в друзья</span>
+                  <input type="checkbox" id="notifyFriendRequests" checked />
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-panel" id="panel-privacy">
+              <div class="settings-panel-title">Приватность</div>
+              <div class="settings-panel-subtitle">Подтверждения и ограничения.</div>
+
+              <div class="settings-grid">
+                <label class="settings-toggle">
+                  <span>Подтверждение удаления чата</span>
+                  <input type="checkbox" id="confirmDeleteChat" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Подтверждение удаления из друзей</span>
+                  <input type="checkbox" id="confirmRemoveFriend" checked />
+                </label>
+
+                <label class="settings-toggle">
+                  <span>Подтверждение удаления сообщения</span>
+                  <input type="checkbox" id="confirmDeleteMessage" checked />
+                </label>
+              </div>
+            </div>
+			
+			<div class="settings-panel" id="panel-security">
+			  <div class="settings-panel-title">Безопасность</div>
+			  <div class="settings-panel-subtitle">Управляй активными устройствами и сессиями.</div>
+
+			  <div class="settings-grid">
+			    <div class="settings-row">
+			      <div class="ui-section-label">Активные устройства</div>
+			      <div id="sessionsList" class="settings-grid"></div>
+			    </div>
+			  </div>
+
+			  <div class="actions" style="justify-content:flex-start; margin-top:18px;">
+			    <button id="refreshSessionsBtn" type="button" class="ui-btn discord-secondary">Обновить список</button>
+			    <button id="logoutAllSessionsBtn" type="button" class="ui-btn" style="background:linear-gradient(135deg,#da373c,#c22f34); border-color:transparent;">Выйти со всех устройств</button>
+			  </div>
+			</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="resetBtn" type="button" class="ui-btn discord-secondary">Сбросить</button>
+          <button id="applyBtn" type="button" class="ui-btn discord-primary">Применить</button>
+        </div>
+
+        <div class="ui-meta">
+          <div class="ui-meta-line">Настройки сохраняются локально и применяются сразу после нажатия “Применить”.</div>
+          <div class="ui-meta-line">Устройства могут появиться только после разрешения доступа к микрофону.</div>
+        </div>
+
+        <div id="status" class="ui-status-ok"></div>
+
+        <div class="footer-row">
+          <div class="footer-pill">Galaxy settings</div>
+          <div id="deviceCount">Устройств ввода: 0</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const { ipcRenderer } = require('electron');
 
-    async function init() {
+    const DEFAULT_MIC_SETTINGS = {
+      deviceId: 'default',
+      outputDeviceId: 'default',
+      volume: 100,
+      noiseSuppression: true,
+      echoCancellation: true,
+      autoGainControl: true
+    };
+
+    const DEFAULT_APP_SETTINGS = {
+      voiceMode: 'toggle',
+      pttKey: 'V',
+      voiceSensitivity: 50,
+      autoMuteOnJoin: false,
+      showSpeaking: true,
+      enterToSend: true,
+      compactChat: false,
+      showAvatars: true,
+      showMessageTime: true,
+      chatFontSize: 16,
+      theme: 'dark',
+      accentColor: '#5b64f5',
+      blurStrength: 18,
+      notifyDm: true,
+      notifyFriendRequests: true,
+      notifySound: true,
+      silenceWhenFocused: true,
+      showTyping: true,
+      friendsOnlyDm: false,
+      confirmDeleteChat: true,
+      confirmRemoveFriend: true,
+      confirmDeleteMessage: true
+    };
+
+    const micVolume = document.getElementById('micVolume');
+    const applyBtn = document.getElementById('applyBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusEl = document.getElementById('status');
+    const volumeValueEl = document.getElementById('volumeValue');
+    const deviceCountEl = document.getElementById('deviceCount');
+	
+	let settingsUsername = null;
+
+    const voiceSensitivity = document.getElementById('voiceSensitivity');
+    const sensitivityValue = document.getElementById('sensitivityValue');
+    const chatFontSize = document.getElementById('chatFontSize');
+    const chatFontSizeValue = document.getElementById('chatFontSizeValue');
+    const blurStrength = document.getElementById('blurStrength');
+    const blurValue = document.getElementById('blurValue');
+
+    function minimizeWindow() {
+      ipcRenderer.send('window-minimize');
+    }
+
+    function closeWindow() {
+      ipcRenderer.send('window-close');
+    }
+	
+	async function apiPost(path, body = {}) {
+	  const CONFIG = require('../config');
+	  const res = await fetch(`${CONFIG.API_BASE}${path}`, {
+	    method: 'POST',
+	    headers: { 'Content-Type': 'application/json' },
+	    body: JSON.stringify(body)
+	  });
+
+	  let data = {};
+	  try {
+	    data = await res.json();
+	  } catch (_) {}
+
+	  return { res, data };
+	}
+
+    function setStatus(text, isOk = true) {
+      statusEl.textContent = text || '';
+      statusEl.className = isOk ? 'ui-status-ok' : 'ui-status-error';
+    }
+
+    function updateVolumeLabel() {
+      volumeValueEl.textContent = `${Number(micVolume.value || 100)}%`;
+    }
+
+    function updateSensitivityLabel() {
+      sensitivityValue.textContent = `${Number(voiceSensitivity.value || 50)}%`;
+    }
+
+    function updateChatFontSizeLabel() {
+      chatFontSizeValue.textContent = `${Number(chatFontSize.value || 16)}px`;
+    }
+
+    function updateBlurLabel() {
+      blurValue.textContent = `${Number(blurStrength.value || 18)}px`;
+    }
+
+    function getStoredMicSettings() {
+      try {
+        return { ...DEFAULT_MIC_SETTINGS, ...(JSON.parse(localStorage.getItem('mini-discord-mic-settings') || '{}')) };
+      } catch {
+        return { ...DEFAULT_MIC_SETTINGS };
+      }
+    }
+
+    function getStoredAppSettings() {
+      try {
+        return { ...DEFAULT_APP_SETTINGS, ...(JSON.parse(localStorage.getItem('mini-discord-settings') || '{}')) };
+      } catch {
+        return { ...DEFAULT_APP_SETTINGS };
+      }
+    }
+
+    function fillForm() {
+      const mic = getStoredMicSettings();
+      const app = getStoredAppSettings();
+
+      micVolume.value = mic.volume ?? 100;
+      document.getElementById('noiseSuppression').checked = !!mic.noiseSuppression;
+      document.getElementById('echoCancellation').checked = !!mic.echoCancellation;
+      document.getElementById('autoGainControl').checked = !!mic.autoGainControl;
+
+      selectedVoiceMode = app.voiceMode || 'ptt';
+      document.getElementById('voiceModeSelected').textContent =
+        selectedVoiceMode === 'voice' ? 'Voice Activity' :
+        selectedVoiceMode === 'toggle' ? 'Mute Toggle' : 'PTT';
+      document.getElementById('pttKey').value = app.pttKey;
+      voiceSensitivity.value = app.voiceSensitivity;
+      document.getElementById('autoMuteOnJoin').checked = !!app.autoMuteOnJoin;
+      document.getElementById('showSpeaking').checked = !!app.showSpeaking;
+
+      document.getElementById('enterToSend').checked = !!app.enterToSend;
+      document.getElementById('compactChat').checked = !!app.compactChat;
+      document.getElementById('showAvatars').checked = !!app.showAvatars;
+      document.getElementById('showMessageTime').checked = !!app.showMessageTime;
+      chatFontSize.value = app.chatFontSize;
+
+      selectedTheme = app.theme || 'dark';
+      document.getElementById('themeSelected').textContent =
+        selectedTheme === 'light' ? 'Светлая' :
+        selectedTheme === 'auto' ? 'Авто' : 'Тёмная';
+      document.getElementById('accentColor').value = app.accentColor;
+      blurStrength.value = app.blurStrength;
+
+      document.getElementById('notifyDm').checked = !!app.notifyDm;
+      document.getElementById('notifyFriendRequests').checked = !!app.notifyFriendRequests;
+      document.getElementById('notifySound').checked = !!app.notifySound;
+      document.getElementById('silenceWhenFocused').checked = !!app.silenceWhenFocused;
+
+      document.getElementById('showTyping').checked = !!app.showTyping;
+      document.getElementById('friendsOnlyDm').checked = !!app.friendsOnlyDm;
+      document.getElementById('confirmDeleteChat').checked = !!app.confirmDeleteChat;
+      document.getElementById('confirmRemoveFriend').checked = !!app.confirmRemoveFriend;
+      document.getElementById('confirmDeleteMessage').checked = !!app.confirmDeleteMessage;
+
+      updateVolumeLabel();
+      updateSensitivityLabel();
+      updateChatFontSizeLabel();
+      updateBlurLabel();
+    }
+
+    function collectMicSettings() {
+      return {
+        deviceId: selectedMicDeviceId || 'default',
+        outputDeviceId: selectedSpeakerDeviceId || 'default',
+        volume: Number(micVolume.value || 100),
+        noiseSuppression: document.getElementById('noiseSuppression').checked,
+        echoCancellation: document.getElementById('echoCancellation').checked,
+        autoGainControl: document.getElementById('autoGainControl').checked
+      };
+    }
+
+    function collectAppSettings() {
+      return {
+        voiceMode: selectedVoiceMode,
+        pttKey: document.getElementById('pttKey').value.trim() || 'V',
+        voiceSensitivity: Number(voiceSensitivity.value || 50),
+        autoMuteOnJoin: document.getElementById('autoMuteOnJoin').checked,
+        showSpeaking: document.getElementById('showSpeaking').checked,
+        enterToSend: document.getElementById('enterToSend').checked,
+        compactChat: document.getElementById('compactChat').checked,
+        showAvatars: document.getElementById('showAvatars').checked,
+        showMessageTime: document.getElementById('showMessageTime').checked,
+        chatFontSize: Number(chatFontSize.value || 16),
+        theme: selectedTheme,
+        accentColor: document.getElementById('accentColor').value,
+        blurStrength: Number(blurStrength.value || 18),
+        notifyDm: document.getElementById('notifyDm').checked,
+        notifyFriendRequests: document.getElementById('notifyFriendRequests').checked,
+        notifySound: document.getElementById('notifySound').checked,
+        silenceWhenFocused: document.getElementById('silenceWhenFocused').checked,
+        showTyping: document.getElementById('showTyping').checked,
+        friendsOnlyDm: document.getElementById('friendsOnlyDm').checked,
+        confirmDeleteChat: document.getElementById('confirmDeleteChat').checked,
+        confirmRemoveFriend: document.getElementById('confirmRemoveFriend').checked,
+        confirmDeleteMessage: document.getElementById('confirmDeleteMessage').checked
+      };
+    }
+
+    async function initDevices() {
+      setStatus('');
+    
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {}
-
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const select = document.getElementById('micSelect');
-      const mics = devices.filter((d) => d.kind === 'audioinput');
-
-      mics.forEach((mic, index) => {
-        const option = document.createElement('option');
-        option.value = mic.deviceId;
-        option.textContent = mic.label || `Микрофон ${index + 1}`;
-        select.appendChild(option);
-      });
-
-      const saved = JSON.parse(localStorage.getItem('mini-discord-mic-settings') || '{}');
-      if (saved.deviceId) select.value = saved.deviceId;
-      if (saved.volume) document.getElementById('micVolume').value = saved.volume;
+      } catch {
+        setStatus('Нет доступа к микрофону. Разреши доступ и открой окно ещё раз.', false);
+      }
+    
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter((d) => d.kind === 'audioinput');
+        const speakers = devices.filter((d) => d.kind === 'audiooutput');
+    
+        initMicDropdown(mics);
+        initSpeakerDropdown(speakers);
+		initVoiceModeDropdown();
+		initThemeDropdown();
+    
+        deviceCountEl.textContent = `Устройств ввода: ${mics.length}`;
+    
+        const savedMic = JSON.parse(localStorage.getItem('mini-discord-mic-settings') || '{}');
+    
+        selectedMicDeviceId = savedMic.deviceId || 'default';
+        if (selectedMicDeviceId === 'default') {
+          document.getElementById('micSelected').textContent = 'По умолчанию';
+        } else {
+          const selectedMic = mics.find((m) => m.deviceId === selectedMicDeviceId);
+          document.getElementById('micSelected').textContent =
+            selectedMic?.label || 'Выбранный микрофон';
+        }
+    
+        selectedSpeakerDeviceId = savedMic.outputDeviceId || 'default';
+        if (selectedSpeakerDeviceId === 'default') {
+          document.getElementById('speakerSelected').textContent = 'По умолчанию';
+        } else {
+          const selectedSpeaker = speakers.find((s) => s.deviceId === selectedSpeakerDeviceId);
+          document.getElementById('speakerSelected').textContent =
+            selectedSpeaker?.label || 'Выбранный вывод';
+        }
+    
+        if (savedMic.volume !== undefined) micVolume.value = savedMic.volume;
+    
+        updateVolumeLabel();
+    
+        if (mics.length === 0) {
+          setStatus('Аудиоустройства ввода не найдены.', false);
+        }
+      } catch (err) {
+        console.error('settings init error:', err);
+        setStatus('Не удалось получить список устройств.', false);
+      }
     }
+	
+	function formatSessionDate(value) {
+	  if (!value) return '—';
+	  return new Date(value).toLocaleString();
+	}
+
+	function renderSessions(sessions = []) {
+	  const box = document.getElementById('sessionsList');
+	  if (!box) return;
+
+	  box.innerHTML = '';
+
+	  if (!sessions.length) {
+	    box.innerHTML = '<div class="ui-meta-line">Активных устройств нет.</div>';
+	    return;
+	  }
+
+	  sessions.forEach((session) => {
+	    const card = document.createElement('div');
+	    card.className = 'session-card';
+
+	    const head = document.createElement('div');
+	    head.className = 'session-card-head';
+
+	    const title = document.createElement('div');
+	    title.className = 'session-card-title';
+	    title.textContent = session.deviceName || 'Unknown device';
+
+	    head.appendChild(title);
+
+	    if (session.current) {
+	      const badge = document.createElement('div');
+	      badge.className = 'session-card-badge';
+	      badge.textContent = 'Текущее';
+	      head.appendChild(badge);
+	    }
+
+	    const meta = document.createElement('div');
+	    meta.className = 'session-card-meta';
+	    meta.innerHTML = `
+	      <div>Создано: ${formatSessionDate(session.createdAt)}</div>
+	      <div>Последняя активность: ${formatSessionDate(session.lastUsedAt)}</div>
+	      <div>Истекает: ${formatSessionDate(session.expiresAt)}</div>
+	    `;
+
+	    const actions = document.createElement('div');
+	    actions.className = 'session-card-actions';
+
+	    const logoutBtn = document.createElement('button');
+	    logoutBtn.className = 'ui-btn discord-secondary';
+	    logoutBtn.textContent = session.current ? 'Выйти с этого устройства' : 'Отключить устройство';
+	    logoutBtn.onclick = () => logoutOneSession(session.sessionId);
+
+	    actions.appendChild(logoutBtn);
+	    card.append(head, meta, actions);
+	    box.appendChild(card);
+	  });
+	}
+
+	async function loadSessions() {
+	  try {
+	    const token = await ipcRenderer.invoke('get-session');
+	    if (!token) {
+	      renderSessions([]);
+	      return;
+	    }
+
+	    const { res, data } = await apiPost('/sessions', { token });
+	    if (!res.ok || data?.error) {
+	      setStatus(data?.error || 'Не удалось загрузить устройства', false);
+	      renderSessions([]);
+	      return;
+	    }
+
+	    renderSessions(Array.isArray(data.sessions) ? data.sessions : []);
+	  } catch (err) {
+	    console.error(err);
+	    setStatus('Не удалось загрузить устройства', false);
+	  }
+	}
+
+	async function logoutOneSession(sessionId) {
+	  try {
+	    const token = await ipcRenderer.invoke('get-session');
+	    if (!token) return;
+
+	    const { res, data } = await apiPost('/logout-session', { token, sessionId });
+	    if (!res.ok || data?.error) {
+	      setStatus(data?.error || 'Не удалось отключить устройство', false);
+	      return;
+	    }
+
+	    if (data.currentLoggedOut) {
+	      ipcRenderer.send('clear-session');
+	      ipcRenderer.send('logout');
+	      return;
+	    }
+
+	    setStatus('Устройство отключено.');
+	    await loadSessions();
+	  } catch (err) {
+	    console.error(err);
+	    setStatus('Не удалось отключить устройство', false);
+	  }
+	}
+
+	async function logoutAllSessions() {
+	  try {
+	    const token = await ipcRenderer.invoke('get-session');
+	    if (!token) return;
+	
+	    const { res, data } = await apiPost('/logout-all-sessions', { token });
+	    if (!res.ok || data?.error) {
+	      setStatus(data?.error || 'Не удалось завершить все сессии', false);
+	      return;
+	    }
+
+	    ipcRenderer.send('clear-session');
+	    ipcRenderer.send('logout');
+	  } catch (err) {
+	    console.error(err);
+	    setStatus('Не удалось завершить все сессии', false);
+	  }
+	}
 
     function applySettings() {
-      const payload = {
-        deviceId: document.getElementById('micSelect').value,
-        volume: Number(document.getElementById('micVolume').value || 100)
+      const micPayload = {
+        deviceId: selectedMicDeviceId || 'default',
+        outputDeviceId: selectedSpeakerDeviceId || 'default',
+        volume: Number(micVolume.value || 100),
+        noiseSuppression: document.getElementById('noiseSuppression').checked,
+        echoCancellation: document.getElementById('echoCancellation').checked,
+        autoGainControl: document.getElementById('autoGainControl').checked
       };
 
-      localStorage.setItem('mini-discord-mic-settings', JSON.stringify(payload));
-      ipcRenderer.send('apply-mic-settings', payload);
-      alert('Настройки применены');
+      localStorage.setItem('mini-discord-mic-settings', JSON.stringify(micPayload));
+      ipcRenderer.send('apply-mic-settings', micPayload);
+
+      setStatus('Настройки применены.');
     }
 
-    init();
+    function resetSettings() {
+      localStorage.setItem('mini-discord-mic-settings', JSON.stringify(DEFAULT_MIC_SETTINGS));
+      localStorage.setItem('mini-discord-settings', JSON.stringify(DEFAULT_APP_SETTINGS));
+      fillForm();
+      setStatus('Настройки сброшены.');
+    }
+	
+	let selectedMicDeviceId = 'default';
+	let selectedSpeakerDeviceId = 'default';
+	let selectedVoiceMode = 'ptt';
+	let selectedTheme = 'dark';
+
+	function initMicDropdown(devices) {
+	  const dropdown = document.getElementById('micDropdown');
+	  const list = document.getElementById('micOptions');
+	  const selected = document.getElementById('micSelected');
+
+	  if (!dropdown || !list || !selected) return;
+
+	  list.innerHTML = '';
+
+	  const defaultItem = document.createElement('div');
+	  defaultItem.className = 'ui-dropdown-item';
+	  defaultItem.textContent = 'По умолчанию';
+	  defaultItem.onclick = () => {
+	    selected.textContent = 'По умолчанию';
+	    selectedMicDeviceId = 'default';
+	    dropdown.classList.remove('open');
+	  };
+	  list.appendChild(defaultItem);
+
+	  devices.forEach((d, index) => {
+	    const item = document.createElement('div');
+	    item.className = 'ui-dropdown-item';
+	    item.textContent = d.label || `Микрофон ${index + 1}`;
+
+	    item.onclick = () => {
+	      selected.textContent = item.textContent;
+	      selectedMicDeviceId = d.deviceId;
+	      dropdown.classList.remove('open');
+	    };
+
+	    list.appendChild(item);
+	  });
+
+	  selected.onclick = () => {
+	    dropdown.classList.toggle('open');
+	  };
+
+	  document.addEventListener('click', (e) => {
+	    if (!dropdown.contains(e.target)) {
+	      dropdown.classList.remove('open');
+	    }
+	  });
+	}
+	
+	function initSpeakerDropdown(devices) {
+	  const dropdown = document.getElementById('speakerDropdown');
+	  const list = document.getElementById('speakerOptions');
+	  const selected = document.getElementById('speakerSelected');
+
+	  if (!dropdown || !list || !selected) return;
+
+	  list.innerHTML = '';
+
+	  const defaultItem = document.createElement('div');
+	  defaultItem.className = 'ui-dropdown-item';
+	  defaultItem.textContent = 'По умолчанию';
+	  defaultItem.onclick = () => {
+	    selected.textContent = 'По умолчанию';
+	    selectedSpeakerDeviceId = 'default';
+	    dropdown.classList.remove('open');
+	  };
+	  list.appendChild(defaultItem);
+
+	  devices.forEach((d, index) => {
+	    const item = document.createElement('div');
+	    item.className = 'ui-dropdown-item';
+	    item.textContent = d.label || `Вывод ${index + 1}`;
+	
+	    item.onclick = () => {
+	      selected.textContent = item.textContent;
+	      selectedSpeakerDeviceId = d.deviceId;
+	      dropdown.classList.remove('open');
+	    };
+	
+	    list.appendChild(item);
+	  });
+
+	  selected.onclick = () => {
+	    dropdown.classList.toggle('open');
+	  };
+
+	  document.addEventListener('click', (e) => {
+	    if (!dropdown.contains(e.target)) {
+	      dropdown.classList.remove('open');
+	    }
+	  });
+	}
+	
+	function initVoiceModeDropdown() {
+	  const dropdown = document.getElementById('voiceModeDropdown');
+	  const list = document.getElementById('voiceModeOptions');
+	  const selected = document.getElementById('voiceModeSelected');
+
+	  if (!dropdown || !list || !selected) return;
+
+	  const options = [
+	    { value: 'ptt', label: 'PTT' },
+	    { value: 'voice', label: 'Voice Activity' },
+	    { value: 'toggle', label: 'Mute Toggle' }
+	  ];
+
+	  list.innerHTML = '';
+
+	  options.forEach((opt) => {
+	    const item = document.createElement('div');
+	    item.className = 'ui-dropdown-item';
+	    item.textContent = opt.label;
+
+	    item.onclick = () => {
+	      selected.textContent = opt.label;
+	      selectedVoiceMode = opt.value;
+	      dropdown.classList.remove('open');
+	    };
+
+	    list.appendChild(item);
+	  });
+
+	  selected.onclick = () => {
+	    dropdown.classList.toggle('open');
+	  };
+
+	  document.addEventListener('click', (e) => {
+	    if (!dropdown.contains(e.target)) {
+	      dropdown.classList.remove('open');
+	    }
+	  });
+	}
+	
+	function initThemeDropdown() {
+	  const dropdown = document.getElementById('themeDropdown');
+	  const list = document.getElementById('themeOptions');
+	  const selected = document.getElementById('themeSelected');
+
+	  if (!dropdown || !list || !selected) return;
+
+	  const options = [
+	    { value: 'dark', label: 'Тёмная' },
+	    { value: 'light', label: 'Светлая' },
+	    { value: 'auto', label: 'Авто' }
+	  ];
+
+	  list.innerHTML = '';
+
+	  options.forEach((opt) => {
+	    const item = document.createElement('div');
+	    item.className = 'ui-dropdown-item';
+	    item.textContent = opt.label;
+
+	    item.onclick = () => {
+	      selected.textContent = opt.label;
+	      selectedTheme = opt.value;
+	      dropdown.classList.remove('open');
+	    };
+
+	    list.appendChild(item);
+	  });
+
+	  selected.onclick = () => {
+	    dropdown.classList.toggle('open');
+	  };
+
+	  document.addEventListener('click', (e) => {
+	    if (!dropdown.contains(e.target)) {
+	      dropdown.classList.remove('open');
+	    }
+	  });
+	}
+
+    document.querySelectorAll('.settings-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+
+        document.querySelectorAll('.settings-tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        document.querySelectorAll('.settings-panel').forEach((panel) => {
+          panel.classList.remove('active');
+        });
+
+        document.getElementById(`panel-${tab}`)?.classList.add('active');
+      });
+    });
+
+    applyBtn.addEventListener('click', applySettings);
+    resetBtn.addEventListener('click', resetSettings);
+    micVolume.addEventListener('input', updateVolumeLabel);
+    micVolume?.addEventListener('input', updateVolumeLabel);
+    voiceSensitivity?.addEventListener('input', updateSensitivityLabel);
+    chatFontSize?.addEventListener('input', updateChatFontSizeLabel);
+    blurStrength?.addEventListener('input', updateBlurLabel);
+	
+	document.getElementById('refreshSessionsBtn')?.addEventListener('click', loadSessions);
+	document.getElementById('logoutAllSessionsBtn')?.addEventListener('click', logoutAllSessions);
+
+	ipcRenderer.on('settings-current-username', (_event, username) => {
+	  settingsUsername = username || null;
+	  loadSessions();
+	});
+
+    initDevices();
   </script>
 </body>
 </html>

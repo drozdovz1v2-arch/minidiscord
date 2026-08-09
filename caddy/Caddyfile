@@ -1,0 +1,6 @@
+https://26.117.251.163 {
+    tls C:/MiniDiscord/certs/cert.pem C:/MiniDiscord/certs/key.pem
+
+    reverse_proxy /voicews 127.0.0.1:4001
+    reverse_proxy 127.0.0.1:3000
+}

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>MiniDiscord Update</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(110, 91, 255, 0.28), transparent 26%),
+        radial-gradient(circle at 82% 22%, rgba(84, 199, 255, 0.18), transparent 24%),
+        radial-gradient(circle at 70% 78%, rgba(132, 102, 255, 0.14), transparent 22%),
+        linear-gradient(135deg, #060812 0%, #0b0f1f 38%, #101736 72%, #121a44 100%);
+    }
+
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.32;
+      background-image:
+        radial-gradient(circle at 12% 22%, rgba(255,255,255,0.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 24% 76%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 41% 35%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 54% 62%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 68% 18%, rgba(255,255,255,0.85) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 76% 46%, rgba(255,255,255,0.75) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 88% 27%, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 91% 74%, rgba(255,255,255,0.8) 0 1px, transparent 1.5px);
+    }
+
+    .aurora-line {
+      position: fixed;
+      right: -10%;
+      top: 16%;
+      width: 78vw;
+      height: 220px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 18% 50%, rgba(130, 104, 255, 0.18), transparent 30%),
+        linear-gradient(90deg,
+          rgba(78, 157, 255, 0) 0%,
+          rgba(86, 180, 255, 0.2) 18%,
+          rgba(140, 110, 255, 0.3) 52%,
+          rgba(89, 207, 255, 0.16) 76%,
+          rgba(255,255,255,0) 100%);
+      filter: blur(18px);
+      transform: rotate(-10deg);
+      opacity: 0.9;
+    }
+
+    .update-shell {
+      width: 520px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .update-card {
+      position: relative;
+      z-index: 1;
+      padding: 22px 24px 22px;
+      border-radius: 30px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
+        rgba(14, 17, 34, 0.82);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 34px 90px rgba(0,0,0,0.46);
+      overflow: hidden;
+    }
+
+    .update-card::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(
+        135deg,
+        rgba(255,255,255,0.15),
+        rgba(255,255,255,0.04) 42%,
+        rgba(94, 112, 255, 0.06) 68%,
+        rgba(255,255,255,0.02)
+      );
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .update-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .update-topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mini-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+      border: 1px solid rgba(255,255,255,0.08);
+      flex: 0 0 auto;
+    }
+
+    .mini-logo img {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .mini-title {
+      font-size: 13px;
+      color: #f5f7ff;
+      letter-spacing: 0.02em;
+      font-weight: 700;
+    }
+
+    .update-topbar-right {
+      -webkit-app-region: no-drag;
+    }
+
+    .close-btn {
+      width: 34px;
+      height: 30px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #d8deff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 140ms ease, color 140ms ease, transform 120ms ease;
+    }
+
+    .close-btn:hover {
+      background: rgba(218,55,60,0.18);
+      color: #fff;
+    }
+
+    .close-btn:active {
+      transform: scale(0.96);
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .hero-logo {
+      width: 74px;
+      height: 74px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(95,82,255,0.34), rgba(55,145,255,0.18));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 12px 28px rgba(91, 98, 255, 0.22),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+      flex: 0 0 auto;
+    }
+
+    .hero-logo img {
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 18px rgba(91,100,245,0.18));
+    }
+
+    .hero-title {
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      color: #f5f7ff;
+    }
+
+    .hero-subtitle {
+      margin: 0;
+      color: #b8c0de;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .progress-shell {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.04);
+      margin-bottom: 14px;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #5b64f5, #49b7ff);
+      box-shadow: 0 0 18px rgba(91,100,245,0.45);
+      transition: width 180ms ease;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      color: #dce3ff;
+      font-size: 13px;
+    }
+
+    .progress-pill {
+      padding: 7px 11px;
+      border-radius: 999px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 12px;
+      color: #e1e7ff;
+      white-space: nowrap;
+    }
+
+    .status-box {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.05);
+      margin-bottom: 14px;
+    }
+
+    .status-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #aeb4d0;
+      margin-bottom: 8px;
+    }
+
+    .status-text {
+      font-size: 14px;
+      color: #f0f3ff;
+      line-height: 1.5;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: #8e949c;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-right {
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="aurora-line"></div>
+  <div class="ambient">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+  </div>
+  <div class="noise"></div>
+
+  <div class="update-shell">
+    <div class="update-card">
+      <div class="update-topbar">
+        <div class="update-topbar-left">
+          <div class="mini-logo">
+            <img src="logo.png" alt="logo" />
+          </div>
+          <div class="mini-title">MiniDiscord Update</div>
+        </div>
+
+        <div class="update-topbar-right">
+          <button class="close-btn" onclick="closeWindow()">✕</button>
+        </div>
+      </div>
+
+      <div class="hero">
+        <div class="hero-logo">
+          <img src="logo.png" alt="logo" />
+        </div>
+        <div>
+          <div class="hero-title">Обновление</div>
+          <p class="hero-subtitle">Новая версия загружается и установится автоматически.</p>
+        </div>
+      </div>
+
+      <div class="progress-shell">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <div class="progress-meta">
+        <div id="progressLabel">0%</div>
+        <div class="progress-pill" id="phaseLabel">Подготовка...</div>
+      </div>
+
+      <div class="status-box">
+        <div class="status-title">Статус</div>
+        <div class="status-text" id="statusText">Проверяем наличие новой версии...</div>
+      </div>
+
+      <div class="footer">
+        <div class="footer-left">
+          <div class="progress-pill" id="versionLabel">v...</div>
+          <div>cosmic updater</div>
+        </div>
+        <div class="footer-right" id="speedLabel">0 MB/s</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    function closeWindow() {
+      ipcRenderer.send('window-close');
+    }
+
+    ipcRenderer.on('app-version', (_event, version) => {
+      document.getElementById('versionLabel').textContent = 'v' + version;
+    });
+
+    ipcRenderer.on('update-status', (_event, payload) => {
+      const fill = document.getElementById('progressFill');
+      const progressLabel = document.getElementById('progressLabel');
+      const phaseLabel = document.getElementById('phaseLabel');
+      const statusText = document.getElementById('statusText');
+      const speedLabel = document.getElementById('speedLabel');
+
+      if (typeof payload.percent === 'number') {
+        const p = Math.max(0, Math.min(100, payload.percent));
+        fill.style.width = p + '%';
+        progressLabel.textContent = Math.round(p) + '%';
+      }
+
+      if (payload.phase) {
+        phaseLabel.textContent = payload.phase;
+      }
+
+      if (payload.text) {
+        statusText.textContent = payload.text;
+      }
+
+      if (payload.bytesPerSecond) {
+        speedLabel.textContent = (payload.bytesPerSecond / 1024 / 1024).toFixed(2) + ' MB/s';
+      }
+    });
+  </script>
+</body>
+</html>
