@@ -76,6 +76,13 @@ const {
   getVpnNetworkInfo
 } = require('../network');
 const { startDiscoveryService } = require('../discovery');
+const { startTurnServer, getTurnPort } = require('../turn-service');
+const {
+  filterIceCandidatePayload,
+  getVoiceConfigPayload
+} = require('../voice-network');
+
+startTurnServer(CONFIG.TURN_PORT);
 
 const webApp = express();
 webApp.use(express.json({ limit: '10mb' }));
@@ -95,6 +102,7 @@ webApp.get('/server-info', (_req, res) => {
     host,
     httpPort: CONFIG.HTTP_PORT,
     voicePort: CONFIG.VOICE_PORT,
+    turnPort: getTurnPort(),
     apiBase: `http://${host}:${CONFIG.HTTP_PORT}`,
     wsTextUrl: `ws://${host}:${CONFIG.HTTP_PORT}`,
     wsVoiceUrl: `ws://${host}:${CONFIG.VOICE_PORT}`,
@@ -102,6 +110,11 @@ webApp.get('/server-info', (_req, res) => {
     vpnAdapters: vpn.vpnAdapters,
     ipv4: getLocalIPv4List()
   });
+});
+
+webApp.get('/voice-config', (_req, res) => {
+  const host = pickBestServerIp();
+  res.json(getVoiceConfigPayload(host, getTurnPort()));
 });
 
 webApp.get('/mail-status', (_req, res) => {
@@ -1640,6 +1653,7 @@ const httpServer = webApp.listen(CONFIG.HTTP_PORT, '0.0.0.0', () => {
   console.log('========== MiniDiscord / Radmin VPN ==========');
   console.log(`HTTP:  http://${radminHost}:${CONFIG.HTTP_PORT}`);
   console.log(`Voice: ws://${radminHost}:${CONFIG.VOICE_PORT}`);
+  console.log(`TURN:  turn://${radminHost}:${getTurnPort()} (Radmin relay)`);
   if (vpn.hasVpn) {
     console.log('VPN:   обнаружен (' + vpn.vpnAdapters.map((a) => `${a.name}=${a.address}`).join(', ') + ')');
   } else {
@@ -1658,7 +1672,8 @@ const httpServer = webApp.listen(CONFIG.HTTP_PORT, '0.0.0.0', () => {
     startDiscoveryService(() => ({
       host: radminHost,
       httpPort: CONFIG.HTTP_PORT,
-      voicePort: CONFIG.VOICE_PORT
+      voicePort: CONFIG.VOICE_PORT,
+      turnPort: getTurnPort()
     }));
   }
 });
@@ -2005,7 +2020,8 @@ wssVoice.on('connection', (ws) => {
       try {
         ws.send(JSON.stringify({
           type: 'channel-members',
-          members: existingPeers
+          members: existingPeers,
+          voiceConfig: getVoiceConfigPayload(pickBestServerIp(), getTurnPort())
         }));
       } catch (_) {}
 
@@ -2069,7 +2085,11 @@ wssVoice.on('connection', (ws) => {
 
       if (data.type === 'offer') payload.offer = data.offer;
       if (data.type === 'answer') payload.answer = data.answer;
-      if (data.type === 'ice-candidate') payload.candidate = data.candidate;
+      if (data.type === 'ice-candidate') {
+        const filtered = filterIceCandidatePayload(data.candidate);
+        if (!filtered) return;
+        payload.candidate = filtered;
+      }
 
       try {
         target.ws.send(JSON.stringify(payload));

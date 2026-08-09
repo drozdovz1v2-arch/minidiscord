@@ -15,7 +15,8 @@ function startLocalDiscovery() {
   startDiscoveryService(() => ({
     host: pickVpnHostIp(),
     httpPort: CONFIG.HTTP_PORT,
-    voicePort: CONFIG.VOICE_PORT
+    voicePort: CONFIG.VOICE_PORT,
+    turnPort: CONFIG.TURN_PORT
   }));
 }
 
@@ -62,6 +63,7 @@ function getNetworkState() {
     host: CONFIG.SERVER_HOST,
     httpPort: CONFIG.HTTP_PORT,
     voicePort: CONFIG.VOICE_PORT,
+    turnPort: CONFIG.TURN_PORT,
     apiBase: CONFIG.API_BASE,
     wsTextUrl: CONFIG.WS_TEXT_URL,
     wsVoiceUrl: CONFIG.WS_VOICE_URL,

@@ -22,6 +22,7 @@ function buildAnnounce(info) {
     host: info.host,
     httpPort: info.httpPort,
     voicePort: info.voicePort,
+    turnPort: info.turnPort || 3478,
     product: 'MiniDiscord'
   });
 }
@@ -96,7 +97,8 @@ function discoverServers(timeoutMs = 2800) {
       found.set(data.host, {
         host: data.host,
         httpPort: data.httpPort || 3000,
-        voicePort: data.voicePort || 4001
+        voicePort: data.voicePort || 4001,
+        turnPort: data.turnPort || 3478
       });
     });
 

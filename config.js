@@ -29,6 +29,7 @@ module.exports = {
   SERVER_HOST_RAW,
   HTTP_PORT: 3000,
   VOICE_PORT: 4001,
+  TURN_PORT: Number(process.env.TURN_PORT || 3478),
   USE_VPN: vpnInfo.hasVpn,
 
   setRuntimeHost,

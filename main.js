@@ -12,6 +12,7 @@ app.commandLine.appendSwitch(
   'default_public_and_private_interfaces'
 );
 app.commandLine.appendSwitch('enable-features', 'WebRtcAllowInputVolumeAdjustment');
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 
 let mainWindow = null;
 let sessionToken = null;

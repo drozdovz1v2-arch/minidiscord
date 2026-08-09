@@ -2155,12 +2155,80 @@
       API_BASE = `http://${host}:${APP_CONFIG.HTTP_PORT}`;
     }
 
-    function buildRtcIceConfig(host) {
+    const VPN_VOICE_PREFIXES = ['26.', '25.', '5.'];
+
+    function extractCandidateIp(candidateStr) {
+      const match = String(candidateStr || '').match(/(\d+\.\d+\.\d+\.\d+)/);
+      return match ? match[1] : null;
+    }
+
+    function getCandidateType(candidateStr) {
+      const match = String(candidateStr || '').match(/typ (\w+)/);
+      return match ? match[1] : '';
+    }
+
+    function isEndOfIceCandidates(candidate) {
+      if (candidate == null) return true;
+      const candStr = typeof candidate === 'string' ? candidate : candidate.candidate;
+      if (candStr == null || candStr === '') return true;
+      return String(candStr).includes('end-of-candidates');
+    }
+
+    function isLikelyVpnIp(ip) {
+      if (!ip) return false;
+      return VPN_VOICE_PREFIXES.some((prefix) => ip.startsWith(prefix));
+    }
+
+    function isAllowedVoiceCandidate(candidate) {
+      if (isEndOfIceCandidates(candidate)) return true;
+
+      const candStr =
+        typeof candidate === 'string' ? candidate : String(candidate?.candidate || '');
+
+      if (!candStr) return false;
+
+      const type = getCandidateType(candStr);
+      if (type === 'relay') return true;
+      if (/\.local\b/i.test(candStr)) return false;
+
+      const ip = extractCandidateIp(candStr);
+      if (!ip) return type === 'host';
+      if (ip.startsWith('127.')) return false;
+      if (isLikelyVpnIp(ip)) return true;
+      if (type === 'srflx' || type === 'prflx') return false;
+
+      return false;
+    }
+
+    function buildRtcIceConfig(host, voiceConfig) {
+      if (voiceConfig?.rtcConfig) return voiceConfig.rtcConfig;
+
+      const turnPort = voiceConfig?.turnPort || APP_CONFIG.TURN_PORT || 3478;
+      const turnUser = voiceConfig?.turnUser || 'minidiscord';
+      const turnPass = voiceConfig?.turnPass || 'minidiscord-radmin-voice-2026';
+
+      if (host && host !== '127.0.0.1') {
+        return {
+          iceServers: [
+            { urls: `stun:${host}:${turnPort}` },
+            {
+              urls: [
+                `turn:${host}:${turnPort}?transport=udp`,
+                `turn:${host}:${turnPort}?transport=tcp`
+              ],
+              username: turnUser,
+              credential: turnPass
+            }
+          ],
+          iceTransportPolicy: 'all',
+          iceCandidatePoolSize: 10,
+          bundlePolicy: 'max-bundle',
+          rtcpMuxPolicy: 'require'
+        };
+      }
+
       return {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ],
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         iceTransportPolicy: 'all',
         iceCandidatePoolSize: 10,
         bundlePolicy: 'max-bundle',
@@ -2168,7 +2236,63 @@
       };
     }
 
-    let rtcIceConfig = buildRtcIceConfig(serverHost);
+    let voiceNetworkConfig = null;
+    let rtcIceConfig = buildRtcIceConfig(serverHost, null);
+
+    async function refreshVoiceNetworkConfig() {
+      try {
+        const res = await fetch(`${API_BASE}/voice-config`);
+        if (!res.ok) throw new Error('voice-config failed');
+        voiceNetworkConfig = await res.json();
+        rtcIceConfig = buildRtcIceConfig(serverHost, voiceNetworkConfig);
+      } catch (err) {
+        console.warn('Voice config fallback:', err?.message || err);
+        rtcIceConfig = buildRtcIceConfig(serverHost, null);
+      }
+    }
+
+    function applyVoiceNetworkConfig(config) {
+      if (!config) return;
+      voiceNetworkConfig = config;
+      rtcIceConfig = buildRtcIceConfig(serverHost, config);
+    }
+
+    function sendVoiceIceCandidate(peerId, candidate) {
+      if (!isWsOpen(wsVoice)) return;
+      if (!isAllowedVoiceCandidate(candidate)) return;
+
+      wsVoice.send(JSON.stringify({
+        type: 'ice-candidate',
+        to: peerId,
+        candidate
+      }));
+    }
+
+    function attachPeerRecovery(pc, peerId) {
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === 'connected' || state === 'connecting') return;
+        if (state !== 'failed' && state !== 'disconnected') return;
+
+        setTimeout(async () => {
+          if (!peers[peerId] || peers[peerId] !== pc || !localStream || !inVoice) return;
+          if (pc.connectionState === 'connected') return;
+
+          try {
+            if (typeof pc.restartIce === 'function') {
+              pc.restartIce();
+            }
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            wsVoice.send(JSON.stringify({ type: 'offer', to: peerId, offer }));
+          } catch (err) {
+            console.warn('ICE restart failed for', peerId, err);
+            removePeer(peerId);
+            createOffer(peerId);
+          }
+        }, 1200);
+      };
+    }
 
     let username = null;
     let wsText = null;
@@ -4346,13 +4470,11 @@ let currentAppSettings = (() => {
 
 	  pc.onicecandidate = (event) => {
 	    if (event.candidate) {
-	      wsVoice.send(JSON.stringify({
-	        type: 'ice-candidate',
-	        to: peerId,
-	        candidate: event.candidate
-	      }));
+	      sendVoiceIceCandidate(peerId, event.candidate);
 	    }
 	  };
+
+	  attachPeerRecovery(pc, peerId);
 
 	  pc.ontrack = async (event) => {
 	    const track = event.track;
@@ -4437,13 +4559,11 @@ let currentAppSettings = (() => {
 
 	  pc.onicecandidate = (event) => {
 	    if (event.candidate) {
-	      wsVoice.send(JSON.stringify({
-	        type: 'ice-candidate',
-	        to: from,
-	        candidate: event.candidate
-	      }));
+	      sendVoiceIceCandidate(from, event.candidate);
 	    }
 	  };
+
+	  attachPeerRecovery(pc, from);
 
 	  pc.ontrack = async (event) => {
 	    const track = event.track;
@@ -4540,6 +4660,8 @@ let currentAppSettings = (() => {
     async function joinVoice(channelName = 'General') {
       if (isWsOpen(wsVoice)) return;
 
+      await refreshVoiceNetworkConfig();
+
       currentVoiceChannel = channelName;
       voiceLeaveIntentional = false;
 
@@ -4574,7 +4696,10 @@ let currentAppSettings = (() => {
       wsVoice.onmessage = async (event) => {
         const data = JSON.parse(event.data);
 
-        if (data.type === 'channel-members') return data.members.forEach((peerId) => createOffer(peerId));
+        if (data.type === 'channel-members') {
+          if (data.voiceConfig) applyVoiceNetworkConfig(data.voiceConfig);
+          return data.members.forEach((peerId) => createOffer(peerId));
+        }
         if (data.type === 'new-peer') return createOffer(data.peerId);
         if (data.type === 'offer') return handleOffer(data.offer, data.from);
 
@@ -4586,7 +4711,7 @@ let currentAppSettings = (() => {
 
         if (data.type === 'ice-candidate') {
           const pc = peers[data.from];
-          if (pc && data.candidate) {
+          if (pc && data.candidate && isAllowedVoiceCandidate(data.candidate)) {
             try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
           }
           return;
@@ -5097,9 +5222,9 @@ let currentAppSettings = (() => {
       if (maxIcon) maxIcon.className = `window-icon ${isMaximized ? 'restore' : 'maximize'}`;
     });
 
-    ipcRenderer.on('server-host', (_event, host) => {
+    ipcRenderer.on('server-host', async (_event, host) => {
       applyServerHost(host);
-      rtcIceConfig = buildRtcIceConfig(host);
+      await refreshVoiceNetworkConfig();
     });
 
     window.addEventListener('focus', () => { hasWindowFocus = true; registerActivity(); });
@@ -5401,8 +5526,8 @@ let currentAppSettings = (() => {
       const cfg = await ipcRenderer.invoke('get-server-config');
       if (cfg?.host) {
         applyServerHost(cfg.host);
-        rtcIceConfig = buildRtcIceConfig(cfg.host);
       }
+      await refreshVoiceNetworkConfig();
       if (user) initChatUser(user);
     });
   </script>
