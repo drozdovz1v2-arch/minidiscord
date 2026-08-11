@@ -5,7 +5,7 @@ cd /d "%~dp0"
 set "GIT=C:\Program Files\Git\cmd\git.exe"
 
 echo ========================================
-echo  MiniDiscord 2.8.0 - публикация на GitHub
+echo  MiniDiscord — публикация на GitHub
 echo ========================================
 echo.
 
