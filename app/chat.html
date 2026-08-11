@@ -2195,9 +2195,48 @@
       if (!ip) return type === 'host';
       if (ip.startsWith('127.')) return false;
       if (isLikelyVpnIp(ip)) return true;
+
+      if (type === 'host') {
+        if (ip.startsWith('192.168.') || ip.startsWith('10.')) return true;
+        const parts = ip.split('.').map(Number);
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+      }
+
       if (type === 'srflx' || type === 'prflx') return false;
 
       return false;
+    }
+
+    async function attachRemoteAudioStream(peerId, stream) {
+      if (!stream) return;
+
+      let audio = remoteAudioEls[peerId];
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.volume = 1;
+        audio.dataset.peer = peerId;
+        remoteAudioEls[peerId] = audio;
+        document.body.appendChild(audio);
+      }
+
+      audio.srcObject = stream;
+
+      if (typeof audio.setSinkId === 'function' && currentMicSettings.outputDeviceId) {
+        try {
+          await audio.setSinkId(currentMicSettings.outputDeviceId);
+        } catch (err) {
+          console.warn('setSinkId failed, default output:', err);
+          delete currentMicSettings.outputDeviceId;
+        }
+      }
+
+      try {
+        await audio.play();
+      } catch (err) {
+        console.warn('remote audio play failed:', peerId, err);
+      }
     }
 
     function buildRtcIceConfig(host, voiceConfig) {
@@ -2269,6 +2308,14 @@
     }
 
     function attachPeerRecovery(pc, peerId) {
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === 'connected' || state === 'completed') {
+          const audio = remoteAudioEls[peerId];
+          if (audio) audio.play().catch(() => {});
+        }
+      };
+
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
         if (state === 'connected' || state === 'connecting') return;
@@ -4381,7 +4428,7 @@ let currentAppSettings = (() => {
 	  try {
 	    screenStream = await navigator.mediaDevices.getDisplayMedia({
 	      video: getScreenVideoConstraints(),
-	      audio: !!screenShareSettings.withAudio
+	      audio: false
 	    });
 
 	    const videoTrack = screenStream.getVideoTracks()[0];
@@ -4406,7 +4453,7 @@ let currentAppSettings = (() => {
 	    setText('voiceStatus', 'В голосе: General • Screen Share');
 	  } catch (err) {
 	    console.error('startScreenShare error:', err);
-	    alert('Не удалось начать демонстрацию экрана');
+	    alert(`Не удалось начать демонстрацию экрана${err?.message ? `: ${err.message}` : ''}`);
 	  }
 	}
 
@@ -4481,26 +4528,8 @@ let currentAppSettings = (() => {
 	    const stream = event.streams[0];
 
 	    if (track.kind === 'audio') {
-	      let audio = remoteAudioEls[peerId];
-
-	      if (!audio) {
-	        audio = document.createElement('audio');
-	        audio.autoplay = true;
-	        audio.dataset.peer = peerId;
-	        remoteAudioEls[peerId] = audio;
-	        document.body.appendChild(audio);
-	      }
-
-	      audio.srcObject = stream;
-
-	      if (typeof audio.setSinkId === 'function' && currentMicSettings.outputDeviceId) {
-	        try {
-	          await audio.setSinkId(currentMicSettings.outputDeviceId);
-	        } catch (err) {
-	          console.warn('setSinkId failed:', err);
-	        }
-	      }
-
+	      await attachRemoteAudioStream(peerId, stream);
+	      track.onunmute = () => attachRemoteAudioStream(peerId, stream);
 	      return;
 	    }
 
@@ -4570,26 +4599,8 @@ let currentAppSettings = (() => {
 	    const stream = event.streams[0];
 
 	    if (track.kind === 'audio') {
-	      let audio = remoteAudioEls[from];
-
-	      if (!audio) {
-	        audio = document.createElement('audio');
-	        audio.autoplay = true;
-	        audio.dataset.peer = from;
-	        remoteAudioEls[from] = audio;
-	        document.body.appendChild(audio);
-	      }
-
-	      audio.srcObject = stream;
-
-	      if (typeof audio.setSinkId === 'function' && currentMicSettings.outputDeviceId) {
-	        try {
-	          await audio.setSinkId(currentMicSettings.outputDeviceId);
-	        } catch (err) {
-	          console.warn('setSinkId failed:', err);
-	        }
-	      }
-
+	      await attachRemoteAudioStream(from, stream);
+	      track.onunmute = () => attachRemoteAudioStream(from, stream);
 	      return;
 	    }
 

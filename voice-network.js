@@ -46,10 +46,12 @@ function isAllowedVoiceCandidate(candidate, options = {}) {
 
   if (isLikelyVpnAddress(ip)) return true;
 
-  if (options.allowLan) {
-    if (ip.startsWith('192.168.') || ip.startsWith('10.')) return true;
-    const parts = ip.split('.').map(Number);
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (type === 'host') {
+    if (options.allowLan !== false) {
+      if (ip.startsWith('192.168.') || ip.startsWith('10.')) return true;
+      const parts = ip.split('.').map(Number);
+      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    }
   }
 
   // Public NAT/reflexive candidates are useless inside Radmin
