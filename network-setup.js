@@ -20,9 +20,46 @@ function startLocalDiscovery() {
   }));
 }
 
+function isDiscoverMode() {
+  const raw = String(CONFIG.SERVER_HOST_RAW || '').trim().toLowerCase();
+  return !raw || raw === 'auto' || raw === 'discover';
+}
+
+function getConfiguredHost() {
+  const raw = String(CONFIG.SERVER_HOST_RAW || '').trim();
+  if (!raw || raw === 'auto' || raw === 'discover') return null;
+  return raw;
+}
+
 async function initializeNetwork(options = {}) {
   const onStatus = options.onStatus || (() => {});
   const localIp = pickVpnHostIp();
+  const configuredHost = getConfiguredHost();
+
+  if (configuredHost) {
+    if (localIp === configuredHost) {
+      onStatus(`Запуск сервера на ${configuredHost}...`);
+      startLocalServer();
+      startLocalDiscovery();
+      CONFIG.setRuntimeHost(configuredHost);
+      isLocalServerHost = true;
+      onStatus(`Вы хост: ${configuredHost}`);
+      return {
+        host: configuredHost,
+        isLocalServer: true,
+        discovered: []
+      };
+    }
+
+    CONFIG.setRuntimeHost(configuredHost);
+    isLocalServerHost = false;
+    onStatus(`Подключение к ${configuredHost}...`);
+    return {
+      host: configuredHost,
+      isLocalServer: false,
+      discovered: []
+    };
+  }
 
   onStatus('Поиск сервера в Radmin VPN...');
 
@@ -74,5 +111,7 @@ function getNetworkState() {
 module.exports = {
   initializeNetwork,
   getNetworkState,
-  startLocalDiscovery
+  startLocalDiscovery,
+  isDiscoverMode,
+  getConfiguredHost
 };

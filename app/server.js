@@ -293,6 +293,10 @@ function isValidEmail(email) {
 }
 
 function pickBestServerIp() {
+  const raw = String(process.env.SERVER_HOST || CONFIG.SERVER_HOST_RAW || '').trim();
+  if (raw && raw !== 'auto' && raw !== 'discover') {
+    return raw;
+  }
   return pickVpnHostIp();
 }
 

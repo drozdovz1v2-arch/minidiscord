@@ -1,10 +1,10 @@
 const { pickVpnHostIp, getVpnNetworkInfo } = require('./network');
 
-// discover — автопоиск сервера в Radmin (рекомендуется)
-// auto — IP этой машины в VPN
-// или явный IP: 26.x.x.x
-const SERVER_HOST_RAW = process.env.SERVER_HOST || 'discover';
+// IP хоста в Radmin VPN (твой ПК-сервер)
+const DEFAULT_SERVER_HOST = '26.127.51.69';
 
+// discover — автопоиск; auto — IP этой машины; или явный IP
+const SERVER_HOST_RAW = process.env.SERVER_HOST || DEFAULT_SERVER_HOST;
 let runtimeHost = null;
 const vpnInfo = getVpnNetworkInfo();
 
@@ -26,6 +26,7 @@ function setRuntimeHost(host) {
 module.exports = {
   PRODUCT_NAME: 'MiniDiscord',
 
+  DEFAULT_SERVER_HOST,
   SERVER_HOST_RAW,
   HTTP_PORT: 3000,
   VOICE_PORT: 4001,
