@@ -2297,8 +2297,7 @@
     }
 
     function sendVoiceIceCandidate(peerId, candidate) {
-      if (!isWsOpen(wsVoice)) return;
-      if (!isAllowedVoiceCandidate(candidate)) return;
+      if (!isWsOpen(wsVoice) || !candidate) return;
 
       wsVoice.send(JSON.stringify({
         type: 'ice-candidate',
@@ -4356,9 +4355,17 @@ let currentAppSettings = (() => {
 
 	async function renegotiatePeer(peerId) {
 	  const pc = peers[peerId];
-	  if (!pc || pc.signalingState !== 'stable') return;
+	  if (!pc) return;
 
-	  const offer = await pc.createOffer();
+	  if (pc.signalingState !== 'stable') {
+	    await new Promise((resolve) => setTimeout(resolve, 400));
+	    if (pc.signalingState !== 'stable') return;
+	  }
+
+	  const offer = await pc.createOffer({
+	    offerToReceiveAudio: true,
+	    offerToReceiveVideo: true
+	  });
 	  await pc.setLocalDescription(offer);
 
 	  wsVoice.send(JSON.stringify({
@@ -4559,6 +4566,7 @@ let currentAppSettings = (() => {
 	      const video = card.querySelector('video');
 	      if (video) {
 	        video.srcObject = stream;
+	        video.play().catch(() => {});
 	      }
 
 	      track.onended = () => {
@@ -4567,7 +4575,10 @@ let currentAppSettings = (() => {
 	    }
 	  };
 
-	  const offer = await pc.createOffer();
+	  const offer = await pc.createOffer({
+	    offerToReceiveAudio: true,
+	    offerToReceiveVideo: true
+	  });
 	  await pc.setLocalDescription(offer);
 
 	  wsVoice.send(JSON.stringify({
@@ -4579,7 +4590,23 @@ let currentAppSettings = (() => {
 
 	// ===== HANDLE OFFER =====
 	async function handleOffer(offer, from) {
-	  if (peers[from] || !localStream) return;
+	  if (!localStream) return;
+
+	  const existing = peers[from];
+	  if (existing) {
+	    try {
+	      if (existing.signalingState === 'have-local-offer') {
+	        await existing.setLocalDescription({ type: 'rollback' });
+	      }
+	      await existing.setRemoteDescription(new RTCSessionDescription(offer));
+	      const answer = await existing.createAnswer();
+	      await existing.setLocalDescription(answer);
+	      wsVoice.send(JSON.stringify({ type: 'answer', to: from, answer }));
+	    } catch (err) {
+	      console.warn('Renegotiation failed for', from, err);
+	    }
+	    return;
+	  }
 
 	  const pc = new RTCPeerConnection(getRtcIceConfig());
 	  peers[from] = pc;
@@ -4630,6 +4657,7 @@ let currentAppSettings = (() => {
 	      const video = card.querySelector('video');
 	      if (video) {
 	        video.srcObject = stream;
+	        video.play().catch(() => {});
 	      }
 
 	      track.onended = () => {
@@ -4709,7 +4737,7 @@ let currentAppSettings = (() => {
 
         if (data.type === 'channel-members') {
           if (data.voiceConfig) applyVoiceNetworkConfig(data.voiceConfig);
-          return data.members.forEach((peerId) => createOffer(peerId));
+          return;
         }
         if (data.type === 'new-peer') return createOffer(data.peerId);
         if (data.type === 'offer') return handleOffer(data.offer, data.from);
@@ -4722,7 +4750,7 @@ let currentAppSettings = (() => {
 
         if (data.type === 'ice-candidate') {
           const pc = peers[data.from];
-          if (pc && data.candidate && isAllowedVoiceCandidate(data.candidate)) {
+          if (pc && data.candidate) {
             try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
           }
           return;

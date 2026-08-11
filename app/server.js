@@ -2089,11 +2089,7 @@ wssVoice.on('connection', (ws) => {
 
       if (data.type === 'offer') payload.offer = data.offer;
       if (data.type === 'answer') payload.answer = data.answer;
-      if (data.type === 'ice-candidate') {
-        const filtered = filterIceCandidatePayload(data.candidate);
-        if (!filtered) return;
-        payload.candidate = filtered;
-      }
+      if (data.type === 'ice-candidate') payload.candidate = data.candidate;
 
       try {
         target.ws.send(JSON.stringify(payload));

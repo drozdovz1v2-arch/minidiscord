@@ -18,9 +18,13 @@ netsh advfirewall firewall add rule name="MiniDiscord Voice WS" dir=in action=al
 netsh advfirewall firewall add rule name="MiniDiscord TURN UDP" dir=in action=allow protocol=UDP localport=3478
 netsh advfirewall firewall add rule name="MiniDiscord TURN TCP" dir=in action=allow protocol=TCP localport=3478
 netsh advfirewall firewall add rule name="MiniDiscord Discovery UDP" dir=in action=allow protocol=UDP localport=41234
+netsh advfirewall firewall add rule name="MiniDiscord WebRTC UDP In" dir=in action=allow protocol=UDP localport=49152-65535
+netsh advfirewall firewall add rule name="MiniDiscord WebRTC UDP Out" dir=out action=allow protocol=UDP localport=49152-65535
 
 echo.
 echo [OK] Правила добавлены (или уже существовали)
-echo      Порты: 3000, 4001, 3478, 41234
+echo      Порты: 3000, 4001, 3478, 41234, UDP 49152-65535
+echo.
+echo ВАЖНО: запусти этот файл на КАЖДОМ ПК (хост и друзья)!
 echo.
 pause
