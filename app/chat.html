@@ -1660,6 +1660,94 @@
 	  font-size: 12px;
 	  color: #9fb2e8;
 	  margin-bottom: 8px;
+	  display: flex;
+	  align-items: center;
+	  justify-content: space-between;
+	  gap: 8px;
+	}
+
+	.remote-screen-actions {
+	  display: flex;
+	  gap: 6px;
+	}
+
+	.remote-screen-fullscreen-btn {
+	  font-size: 11px;
+	  padding: 4px 10px;
+	  border-radius: 999px;
+	  border: 1px solid rgba(255,255,255,0.12);
+	  background: rgba(91,100,245,0.18);
+	  color: #dfe5ff;
+	  cursor: pointer;
+	}
+
+	.remote-screen-fullscreen-btn:hover {
+	  background: rgba(91,100,245,0.32);
+	}
+
+	.remote-screen-fullscreen {
+	  position: fixed;
+	  inset: 0;
+	  z-index: 9999;
+	  display: none;
+	  flex-direction: column;
+	  background: #05070f;
+	}
+
+	.remote-screen-fullscreen.show {
+	  display: flex;
+	}
+
+	.remote-screen-fullscreen-bar {
+	  display: flex;
+	  align-items: center;
+	  justify-content: space-between;
+	  gap: 12px;
+	  padding: 12px 16px;
+	  background: rgba(14, 17, 34, 0.96);
+	  border-bottom: 1px solid rgba(255,255,255,0.08);
+	  color: #dfe5ff;
+	  font-size: 13px;
+	  font-weight: 700;
+	}
+
+	.remote-screen-fullscreen-video {
+	  flex: 1;
+	  width: 100%;
+	  height: 100%;
+	  object-fit: contain;
+	  background: #000;
+	}
+
+	.voice-volume-row {
+	  display: flex;
+	  align-items: center;
+	  gap: 8px;
+	  margin-top: 8px;
+	  width: 100%;
+	}
+
+	.voice-volume-label {
+	  font-size: 11px;
+	  color: #9fb2e8;
+	  min-width: 58px;
+	}
+
+	.voice-volume-slider {
+	  flex: 1;
+	  accent-color: #5b64f5;
+	}
+
+	.voice-volume-value {
+	  font-size: 11px;
+	  color: #cfd8ff;
+	  min-width: 38px;
+	  text-align: right;
+	}
+
+	.item.voice-user-row {
+	  flex-direction: column;
+	  align-items: stretch;
 	}
 
     @media (max-width: 1400px) {
@@ -2093,17 +2181,18 @@
           <div class="ui-section-label">Качество</div>
           <select id="screenQualitySelect" class="ui-select">
             <option value="720p">1280×720</option>
-            <option value="1080p">1920×1080</option>
+            <option value="1080p" selected>1920×1080</option>
             <option value="1440p">2560×1440</option>
+            <option value="native">Нативное (макс.)</option>
           </select>
         </label>
 
         <label class="settings-row">
           <div class="ui-section-label">FPS</div>
           <select id="screenFpsSelect" class="ui-select">
-            <option value="10">10 FPS</option>
-            <option value="15" selected>15 FPS</option>
-            <option value="30">30 FPS</option>
+            <option value="15">15 FPS</option>
+            <option value="30" selected>30 FPS</option>
+            <option value="60">60 FPS</option>
           </select>
         </label>
 
@@ -2118,6 +2207,14 @@
         <button class="ui-btn discord-primary" id="saveScreenShareSettingsBtn">Сохранить</button>
       </div>
     </div>
+  </div>
+
+  <div id="remoteScreenFullscreen" class="remote-screen-fullscreen">
+    <div class="remote-screen-fullscreen-bar">
+      <span id="remoteScreenFullscreenTitle">Демонстрация экрана</span>
+      <button class="remote-screen-fullscreen-btn" id="remoteScreenFullscreenClose" type="button">✕ Закрыть (Esc)</button>
+    </div>
+    <video id="remoteScreenFullscreenVideo" class="remote-screen-fullscreen-video" autoplay playsinline></video>
   </div>
   
   <div class="modal-backdrop" id="callModal">
@@ -2237,6 +2334,31 @@
       } catch (err) {
         console.warn('remote audio play failed:', peerId, err);
       }
+
+      applyPeerVolume(peerId);
+    }
+
+    let peerVolumeMap = {};
+    try {
+      peerVolumeMap = JSON.parse(localStorage.getItem('mini-discord-peer-volumes') || '{}');
+    } catch (_) {
+      peerVolumeMap = {};
+    }
+
+    function getPeerVolume(peerId) {
+      const value = Number(peerVolumeMap[peerId]);
+      return Number.isFinite(value) ? Math.max(0, Math.min(200, value)) : 100;
+    }
+
+    function setPeerVolume(peerId, volume) {
+      peerVolumeMap[peerId] = Math.max(0, Math.min(200, Number(volume) || 0));
+      localStorage.setItem('mini-discord-peer-volumes', JSON.stringify(peerVolumeMap));
+      applyPeerVolume(peerId);
+    }
+
+    function applyPeerVolume(peerId) {
+      const audio = remoteAudioEls[peerId];
+      if (audio) audio.volume = getPeerVolume(peerId) / 100;
     }
 
     function buildRtcIceConfig(host, voiceConfig) {
@@ -2434,11 +2556,20 @@ let currentAppSettings = (() => {
 	let remoteVideoEls = {};
 	let isScreenSharing = false;
 
-	let screenShareSettings = {
-	  fps: 15,
-	  quality: '720p',
-	  withAudio: false
-	};
+	let screenShareSettings = (() => {
+	  try {
+	    return {
+	      fps: 30,
+	      quality: '1080p',
+	      withAudio: false,
+	      ...(JSON.parse(localStorage.getItem('mini-discord-screen-settings') || '{}'))
+	    };
+	  } catch (_) {
+	    return { fps: 30, quality: '1080p', withAudio: false };
+	  }
+	})();
+
+	let remoteScreenFullscreenPeer = null;
 
     let friendsCache = [];
     let incomingRequestsCache = [];
@@ -4040,6 +4171,36 @@ let currentAppSettings = (() => {
           textWrap.append(name, meta);
           main.append(avatar, textWrap);
           item.appendChild(main);
+
+          if (member.username !== username) {
+            const volRow = document.createElement('div');
+            volRow.className = 'voice-volume-row';
+
+            const volLabel = document.createElement('span');
+            volLabel.className = 'voice-volume-label';
+            volLabel.textContent = 'Громкость';
+
+            const volSlider = document.createElement('input');
+            volSlider.type = 'range';
+            volSlider.min = '0';
+            volSlider.max = '200';
+            volSlider.value = String(getPeerVolume(member.username));
+            volSlider.className = 'voice-volume-slider';
+
+            const volValue = document.createElement('span');
+            volValue.className = 'voice-volume-value';
+            volValue.textContent = `${volSlider.value}%`;
+
+            volSlider.addEventListener('input', () => {
+              setPeerVolume(member.username, Number(volSlider.value));
+              volValue.textContent = `${volSlider.value}%`;
+            });
+
+            volRow.append(volLabel, volSlider, volValue);
+            item.classList.add('voice-user-row');
+            item.appendChild(volRow);
+          }
+
           container.appendChild(item);
         });
       };
@@ -4291,13 +4452,128 @@ let currentAppSettings = (() => {
 	    '1440p': { width: 2560, height: 1440 }
 	  };
 
-	  const size = map[screenShareSettings.quality] || map['720p'];
+	  const fps = Number(screenShareSettings.fps || 30);
+	  const quality = screenShareSettings.quality || '1080p';
+	  const size = map[quality];
 
-	  return {
-	    frameRate: { ideal: Number(screenShareSettings.fps || 15), max: Number(screenShareSettings.fps || 15) },
-	    width: { ideal: size.width },
-	    height: { ideal: size.height }
+	  const constraints = {
+	    frameRate: { ideal: fps, max: fps }
 	  };
+
+	  if (size) {
+	    constraints.width = { ideal: size.width, max: size.width };
+	    constraints.height = { ideal: size.height, max: size.height };
+	  } else {
+	    constraints.width = { ideal: 1920, max: 3840 };
+	    constraints.height = { ideal: 1080, max: 2160 };
+	  }
+
+	  return constraints;
+	}
+
+	function getScreenShareMaxBitrate() {
+	  const quality = screenShareSettings.quality || '1080p';
+	  if (quality === 'native' || quality === '1440p') return 9000000;
+	  if (quality === '1080p') return 6000000;
+	  return 2800000;
+	}
+
+	async function applyScreenShareEncoding(videoTrack) {
+	  if (!videoTrack) return;
+
+	  try {
+	    videoTrack.contentHint = Number(screenShareSettings.fps || 30) >= 45 ? 'motion' : 'detail';
+	  } catch (_) {}
+
+	  const maxBitrate = getScreenShareMaxBitrate();
+	  const maxFramerate = Number(screenShareSettings.fps || 30);
+
+	  for (const peerId of Object.keys(peers)) {
+	    const pc = peers[peerId];
+	    if (!pc) continue;
+
+	    const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+	    if (!sender) continue;
+
+	    try {
+	      const params = sender.getParameters();
+	      if (!params.encodings || !params.encodings.length) {
+	        params.encodings = [{}];
+	      }
+	      params.encodings[0].maxBitrate = maxBitrate;
+	      params.encodings[0].maxFramerate = maxFramerate;
+	      await sender.setParameters(params);
+	    } catch (err) {
+	      console.warn('screen encoding params failed:', peerId, err);
+	    }
+	  }
+	}
+
+	function openRemoteScreenFullscreen(peerId) {
+	  const card = remoteVideoEls[peerId];
+	  const sourceVideo = card?.querySelector('video');
+	  const overlay = $('remoteScreenFullscreen');
+	  const fsVideo = $('remoteScreenFullscreenVideo');
+	  if (!sourceVideo?.srcObject || !overlay || !fsVideo) return;
+
+	  remoteScreenFullscreenPeer = peerId;
+	  fsVideo.srcObject = sourceVideo.srcObject;
+	  setText('remoteScreenFullscreenTitle', `${peerId} — демонстрация экрана`);
+	  overlay.classList.add('show');
+	  fsVideo.play().catch(() => {});
+	}
+
+	function closeRemoteScreenFullscreen() {
+	  const overlay = $('remoteScreenFullscreen');
+	  const fsVideo = $('remoteScreenFullscreenVideo');
+	  if (fsVideo) fsVideo.srcObject = null;
+	  if (overlay) overlay.classList.remove('show');
+	  remoteScreenFullscreenPeer = null;
+	}
+
+	function mountRemoteScreenVideo(peerId, stream) {
+	  const host = ensureRemoteScreenHost();
+
+	  let card = remoteVideoEls[peerId];
+	  if (!card) {
+	    card = document.createElement('div');
+	    card.className = 'remote-screen-card';
+
+	    const meta = document.createElement('div');
+	    meta.className = 'remote-screen-meta';
+
+	    const title = document.createElement('span');
+	    title.textContent = `${peerId} демонстрирует экран`;
+
+	    const actions = document.createElement('div');
+	    actions.className = 'remote-screen-actions';
+
+	    const fsBtn = document.createElement('button');
+	    fsBtn.type = 'button';
+	    fsBtn.className = 'remote-screen-fullscreen-btn';
+	    fsBtn.textContent = 'На весь экран';
+	    fsBtn.addEventListener('click', () => openRemoteScreenFullscreen(peerId));
+
+	    actions.appendChild(fsBtn);
+	    meta.append(title, actions);
+
+	    const video = document.createElement('video');
+	    video.className = 'screen-share-video';
+	    video.autoplay = true;
+	    video.playsInline = true;
+	    video.dataset.peer = peerId;
+	    video.addEventListener('dblclick', () => openRemoteScreenFullscreen(peerId));
+
+	    card.append(meta, video);
+	    host.appendChild(card);
+	    remoteVideoEls[peerId] = card;
+	  }
+
+	  const video = card.querySelector('video');
+	  if (video) {
+	    video.srcObject = stream;
+	    video.play().catch(() => {});
+	  }
 	}
 
 	function ensureScreenShareStage() {
@@ -4422,6 +4698,9 @@ let currentAppSettings = (() => {
 	    remoteVideoEls[peerId].remove();
 	    delete remoteVideoEls[peerId];
 	  }
+	  if (remoteScreenFullscreenPeer === peerId) {
+	    closeRemoteScreenFullscreen();
+	  }
 	}
 
 	async function startScreenShare() {
@@ -4454,6 +4733,7 @@ let currentAppSettings = (() => {
 	    stage.classList.add('show');
 
 	    await attachScreenTrackToPeers(videoTrack);
+	    await applyScreenShareEncoding(videoTrack);
 
 	    isScreenSharing = true;
 	    updateScreenShareButtons();
@@ -4500,11 +4780,12 @@ let currentAppSettings = (() => {
 
 	function saveScreenShareSettings() {
 	  screenShareSettings = {
-	    quality: $('screenQualitySelect')?.value || '720p',
-	    fps: Number($('screenFpsSelect')?.value || 15),
+	    quality: $('screenQualitySelect')?.value || '1080p',
+	    fps: Number($('screenFpsSelect')?.value || 30),
 	    withAudio: !!$('screenShareAudioCheckbox')?.checked
 	  };
 
+	  localStorage.setItem('mini-discord-screen-settings', JSON.stringify(screenShareSettings));
 	  closeScreenShareSettings();
 	}
 	
@@ -4541,37 +4822,9 @@ let currentAppSettings = (() => {
 	    }
 
 	    if (track.kind === 'video') {
-	      const host = ensureRemoteScreenHost();
-
-	      let card = remoteVideoEls[peerId];
-	      if (!card) {
-	        card = document.createElement('div');
-	        card.className = 'remote-screen-card';
-
-	        const meta = document.createElement('div');
-	        meta.className = 'remote-screen-meta';
-	        meta.textContent = `${peerId} демонстрирует экран`;
-
-	        const video = document.createElement('video');
-	        video.className = 'screen-share-video';
-	        video.autoplay = true;
-	        video.playsInline = true;
-	        video.dataset.peer = peerId;
-
-	        card.append(meta, video);
-	        host.appendChild(card);
-	        remoteVideoEls[peerId] = card;
-	      }
-
-	      const video = card.querySelector('video');
-	      if (video) {
-	        video.srcObject = stream;
-	        video.play().catch(() => {});
-	      }
-
-	      track.onended = () => {
-	        removeRemoteScreen(peerId);
-	      };
+	      mountRemoteScreenVideo(peerId, stream);
+	      track.onended = () => removeRemoteScreen(peerId);
+	      return;
 	    }
 	  };
 
@@ -4632,37 +4885,9 @@ let currentAppSettings = (() => {
 	    }
 
 	    if (track.kind === 'video') {
-	      const host = ensureRemoteScreenHost();
-
-	      let card = remoteVideoEls[from];
-	      if (!card) {
-	        card = document.createElement('div');
-	        card.className = 'remote-screen-card';
-
-	        const meta = document.createElement('div');
-	        meta.className = 'remote-screen-meta';
-	        meta.textContent = `${from} демонстрирует экран`;
-
-	        const video = document.createElement('video');
-	        video.className = 'screen-share-video';
-	        video.autoplay = true;
-	        video.playsInline = true;
-	        video.dataset.peer = from;
-
-	        card.append(meta, video);
-	        host.appendChild(card);
-	        remoteVideoEls[from] = card;
-	      }
-
-	      const video = card.querySelector('video');
-	      if (video) {
-	        video.srcObject = stream;
-	        video.play().catch(() => {});
-	      }
-
-	      track.onended = () => {
-	        removeRemoteScreen(from);
-	      };
+	      mountRemoteScreenVideo(from, stream);
+	      track.onended = () => removeRemoteScreen(from);
+	      return;
 	    }
 	  };
 
@@ -5507,6 +5732,10 @@ let currentAppSettings = (() => {
 	$('screenShareSettingsBtn')?.addEventListener('click', openScreenShareSettings);
 	$('closeScreenShareSettingsBtn')?.addEventListener('click', closeScreenShareSettings);
 	$('saveScreenShareSettingsBtn')?.addEventListener('click', saveScreenShareSettings);
+	$('remoteScreenFullscreenClose')?.addEventListener('click', closeRemoteScreenFullscreen);
+	document.addEventListener('keydown', (e) => {
+	  if (e.key === 'Escape') closeRemoteScreenFullscreen();
+	});
 
 	$('screenShareSettingsModal')?.addEventListener('click', (e) => {
 	  if (e.target.id === 'screenShareSettingsModal') {
