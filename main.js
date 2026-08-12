@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, session, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 const CONFIG = require('./config');
@@ -590,32 +590,9 @@ ipcMain.on('apply-settings', (_event, payload) => {
 app.whenReady().then(async () => {
   loadSessionToken();
 
-  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 150, height: 150 }
-      });
-
-      if (!sources.length) {
-        callback({});
-        return;
-      }
-
-      const picked =
-        sources.find((s) => /^(screen|entire|экран)/i.test(String(s.name))) ||
-        sources.find((s) => String(s.id).startsWith('screen:')) ||
-        sources[0];
-
-      callback({
-        video: picked,
-        audio: 'loopback'
-      });
-    } catch (err) {
-      log.error('displayMedia handler error:', err);
-      callback({});
-    }
-  });
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    callback({});
+  }, { useSystemPicker: true });
 
   createSplashWindow();
 

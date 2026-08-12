@@ -2178,6 +2178,15 @@
 
       <div class="modal-fields">
         <label class="settings-row">
+          <div class="ui-section-label">Режим</div>
+          <select id="screenPresetSelect" class="ui-select">
+            <option value="quality">Качество (рекомендуется)</option>
+            <option value="balanced">Баланс</option>
+            <option value="smooth">Плавность (игры)</option>
+          </select>
+        </label>
+
+        <label class="settings-row">
           <div class="ui-section-label">Качество</div>
           <select id="screenQualitySelect" class="ui-select">
             <option value="720p">1280×720</option>
@@ -2559,15 +2568,30 @@ let currentAppSettings = (() => {
 	let screenShareSettings = (() => {
 	  try {
 	    return {
+	      preset: 'quality',
 	      fps: 30,
 	      quality: '1080p',
 	      withAudio: false,
 	      ...(JSON.parse(localStorage.getItem('mini-discord-screen-settings') || '{}'))
 	    };
 	  } catch (_) {
-	    return { fps: 30, quality: '1080p', withAudio: false };
+	    return { preset: 'quality', fps: 30, quality: '1080p', withAudio: false };
 	  }
 	})();
+
+	const SCREEN_PRESETS = {
+	  quality: { quality: '1080p', fps: 30, maxBitrate: 12000000, degradation: 'maintain-resolution' },
+	  balanced: { quality: '1080p', fps: 30, maxBitrate: 8000000, degradation: 'balanced' },
+	  smooth: { quality: '720p', fps: 60, maxBitrate: 10000000, degradation: 'maintain-framerate' }
+	};
+
+	function applyScreenPreset(presetKey) {
+	  const preset = SCREEN_PRESETS[presetKey] || SCREEN_PRESETS.quality;
+	  screenShareSettings.preset = presetKey;
+	  screenShareSettings.quality = preset.quality;
+	  screenShareSettings.fps = preset.fps;
+	  return preset;
+	}
 
 	let remoteScreenFullscreenPeer = null;
 
@@ -4457,12 +4481,12 @@ let currentAppSettings = (() => {
 	  const size = map[quality];
 
 	  const constraints = {
-	    frameRate: { ideal: fps, max: fps }
+	    frameRate: { ideal: fps, max: Math.max(fps, 60) }
 	  };
 
 	  if (size) {
-	    constraints.width = { ideal: size.width, max: size.width };
-	    constraints.height = { ideal: size.height, max: size.height };
+	    constraints.width = { ideal: size.width, max: size.width * 2 };
+	    constraints.height = { ideal: size.height, max: size.height * 2 };
 	  } else {
 	    constraints.width = { ideal: 1920, max: 3840 };
 	    constraints.height = { ideal: 1080, max: 2160 };
@@ -4471,28 +4495,42 @@ let currentAppSettings = (() => {
 	  return constraints;
 	}
 
-	function getScreenShareMaxBitrate() {
+	function getScreenShareEncodingProfile() {
+	  const preset = SCREEN_PRESETS[screenShareSettings.preset];
+	  if (preset) return preset;
+
 	  const quality = screenShareSettings.quality || '1080p';
-	  if (quality === 'native' || quality === '1440p') return 9000000;
-	  if (quality === '1080p') return 6000000;
-	  return 2800000;
+	  let maxBitrate = 8000000;
+	  if (quality === 'native' || quality === '1440p') maxBitrate = 14000000;
+	  else if (quality === '1080p') maxBitrate = 12000000;
+	  else if (quality === '720p') maxBitrate = 5000000;
+
+	  return {
+	    maxBitrate,
+	    degradation: Number(screenShareSettings.fps || 30) >= 50 ? 'maintain-framerate' : 'maintain-resolution'
+	  };
+	}
+
+	function getScreenShareMaxBitrate() {
+	  return getScreenShareEncodingProfile().maxBitrate;
 	}
 
 	async function applyScreenShareEncoding(videoTrack) {
 	  if (!videoTrack) return;
 
-	  try {
-	    videoTrack.contentHint = Number(screenShareSettings.fps || 30) >= 45 ? 'motion' : 'detail';
-	  } catch (_) {}
-
-	  const maxBitrate = getScreenShareMaxBitrate();
+	  const profile = getScreenShareEncodingProfile();
+	  const maxBitrate = profile.maxBitrate;
 	  const maxFramerate = Number(screenShareSettings.fps || 30);
+
+	  try {
+	    videoTrack.contentHint = maxFramerate >= 50 ? 'motion' : 'detail';
+	  } catch (_) {}
 
 	  for (const peerId of Object.keys(peers)) {
 	    const pc = peers[peerId];
 	    if (!pc) continue;
 
-	    const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+	    const sender = pc.getSenders().find((s) => s.track === videoTrack);
 	    if (!sender) continue;
 
 	    try {
@@ -4502,6 +4540,11 @@ let currentAppSettings = (() => {
 	      }
 	      params.encodings[0].maxBitrate = maxBitrate;
 	      params.encodings[0].maxFramerate = maxFramerate;
+	      params.encodings[0].scaleResolutionDownBy = 1;
+	      if (profile.degradation) {
+	        params.encodings[0].degradationPreference = profile.degradation;
+	      }
+	      params.degradationPreference = profile.degradation;
 	      await sender.setParameters(params);
 	    } catch (err) {
 	      console.warn('screen encoding params failed:', peerId, err);
@@ -4733,7 +4776,9 @@ let currentAppSettings = (() => {
 	    stage.classList.add('show');
 
 	    await attachScreenTrackToPeers(videoTrack);
+	    await new Promise((resolve) => setTimeout(resolve, 700));
 	    await applyScreenShareEncoding(videoTrack);
+	    setTimeout(() => applyScreenShareEncoding(videoTrack), 2000);
 
 	    isScreenSharing = true;
 	    updateScreenShareButtons();
@@ -4768,8 +4813,9 @@ let currentAppSettings = (() => {
 	}
 
 	function openScreenShareSettings() {
-	  $('screenQualitySelect').value = screenShareSettings.quality || '720p';
-	  $('screenFpsSelect').value = String(screenShareSettings.fps || 15);
+	  $('screenPresetSelect').value = screenShareSettings.preset || 'quality';
+	  $('screenQualitySelect').value = screenShareSettings.quality || '1080p';
+	  $('screenFpsSelect').value = String(screenShareSettings.fps || 30);
 	  $('screenShareAudioCheckbox').checked = !!screenShareSettings.withAudio;
 	  $('screenShareSettingsModal')?.classList.add('show');
 	}
@@ -4779,9 +4825,15 @@ let currentAppSettings = (() => {
 	}
 
 	function saveScreenShareSettings() {
+	  const preset = $('screenPresetSelect')?.value || 'quality';
+	  if (preset !== 'custom') {
+	    applyScreenPreset(preset);
+	  }
+
 	  screenShareSettings = {
-	    quality: $('screenQualitySelect')?.value || '1080p',
-	    fps: Number($('screenFpsSelect')?.value || 30),
+	    preset,
+	    quality: $('screenQualitySelect')?.value || screenShareSettings.quality || '1080p',
+	    fps: Number($('screenFpsSelect')?.value || screenShareSettings.fps || 30),
 	    withAudio: !!$('screenShareAudioCheckbox')?.checked
 	  };
 
@@ -5730,6 +5782,11 @@ let currentAppSettings = (() => {
 	$('shareScreenBtn')?.addEventListener('click', startScreenShare);
 	$('stopShareScreenBtn')?.addEventListener('click', stopScreenShare);
 	$('screenShareSettingsBtn')?.addEventListener('click', openScreenShareSettings);
+	$('screenPresetSelect')?.addEventListener('change', (e) => {
+	  const preset = applyScreenPreset(e.target.value);
+	  if ($('screenQualitySelect')) $('screenQualitySelect').value = preset.quality;
+	  if ($('screenFpsSelect')) $('screenFpsSelect').value = String(preset.fps);
+	});
 	$('closeScreenShareSettingsBtn')?.addEventListener('click', closeScreenShareSettings);
 	$('saveScreenShareSettingsBtn')?.addEventListener('click', saveScreenShareSettings);
 	$('remoteScreenFullscreenClose')?.addEventListener('click', closeRemoteScreenFullscreen);
